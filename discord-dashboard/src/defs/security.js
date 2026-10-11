@@ -8,7 +8,7 @@ module.exports = ({ t, msg }) => [
     extras: 'protection',
     adminOnly: true,
     name: 'Protection du serveur',
-    icon: '🏰',
+    icon: 'shieldAlert',
     description: 'Anti-raid, anti-nuke, filtre d’arrivée, liens d’arnaque, quarantaine et verrouillage d’urgence.',
     toggle: 'enabled',
     fields: [
@@ -85,7 +85,7 @@ module.exports = ({ t, msg }) => [
     category: 'security',
     extras: 'honeypot',
     name: 'Honeypot (salon piège)',
-    icon: '🍯',
+    icon: 'target',
     description: 'Un salon que personne ne doit utiliser : quiconque y écrit (bot piraté, spammeur) est sanctionné aussitôt.',
     toggle: 'enabled',
     fields: [
@@ -120,7 +120,7 @@ module.exports = ({ t, msg }) => [
     category: 'security',
     extras: 'verification',
     name: 'Vérification des membres',
-    icon: '✅',
+    icon: 'userCheck',
     description: 'Les nouveaux restent bloqués tant qu’ils n’ont pas cliqué, résolu un calcul ou répondu à ta question.',
     toggle: 'enabled',
     fields: [

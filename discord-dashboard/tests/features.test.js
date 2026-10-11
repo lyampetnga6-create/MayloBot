@@ -157,7 +157,7 @@ test('schéma : tous les modules ont une catégorie connue et un identifiant uni
     assert.ok(!ids.has(m.id), `${m.id} en double`);
     ids.add(m.id);
   }
-  assert.equal(MODULES.length, 31);
+  assert.equal(MODULES.length, 35);
 });
 
 test('patchModule : ajouter un salon piège conserve les autres réglages', () => {

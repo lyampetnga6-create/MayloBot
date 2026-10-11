@@ -9,6 +9,10 @@ const tickets = require('./modules/tickets');
 const rolepanels = require('./modules/rolepanels');
 const custom = require('./modules/customcommands');
 const protection = require('./modules/protection');
+const appeals = require('./modules/appeals');
+const feeds = require('./modules/feeds');
+const invites = require('./modules/invites');
+const serverstats = require('./modules/serverstats');
 const honeypot = require('./modules/honeypot');
 const verification = require('./modules/verification');
 const community = require('./modules/community');
@@ -85,6 +89,9 @@ const MIN = 60 * 1000;
 /** Tâches périodiques du bot. */
 const JOBS = [
   { name: 'tickets', everyMs: 5 * MIN, run: (c) => tickets.tick(c) },
+  { name: 'contestations', everyMs: 5 * MIN, run: (c) => appeals.tick(c) },
+  { name: 'flux', everyMs: 2 * MIN, firstMs: 60 * 1000, run: (c) => feeds.tick(c) },
+  { name: 'statistiques', everyMs: 30 * 1000, run: (c) => serverstats.tick(c) },
   { name: 'vérification', everyMs: 2 * MIN, run: (c) => verification.tick(c) },
   { name: 'concours', everyMs: 15 * 1000, run: (c) => community.tickGiveaways(c) },
   { name: 'sondages', everyMs: 30 * 1000, run: (c) => community.tickPolls(c) },
@@ -150,6 +157,7 @@ function registerEvents(client) {
     // Démarre l'essai gratuit des serveurs où le bot est déjà présent.
     for (const g of c.guilds.cache.values()) client.ctx.license.status(g.id, g.ownerId);
     await automation.cleanupTempVoice(client);
+    await invites.warm(client);
     if (config.autoDeployCommands) {
       const n = await registerCommands(config, client.commands);
       console.log(`✅ ${n} commandes slash enregistrées${config.devGuildId ? ' (serveur de test)' : ' (globales)'}`);
@@ -167,6 +175,7 @@ function registerEvents(client) {
   client.on(Events.MessageCreate, live(client, 'messageCreate', async (message) => {
     if (!message.guild || message.system) return;
     if (await honeypot.handleMessage(client, message)) return;
+    serverstats.onMessage(client, message);
     if (message.author.bot) {
       await community.onBumpMessage(client, message);
       return;
@@ -202,6 +211,8 @@ function registerEvents(client) {
 
   /* ------------------------------ Membres ----------------------------- */
   client.on(Events.GuildMemberAdd, live(client, 'memberAdd', async (member) => {
+    serverstats.onMemberAdd(client, member);
+    await invites.onMemberAdd(client, member);
     const blocked = await protection.onMemberJoin(client, member);
     if (!blocked) {
       await extras.restoreRoles(client, member);
@@ -212,6 +223,8 @@ function registerEvents(client) {
     await logs.memberJoin(client, member);
   }));
   client.on(Events.GuildMemberRemove, live(client, 'memberRemove', async (member) => {
+    serverstats.onMemberRemove(client, member);
+    invites.onMemberRemove(client, member);
     extras.saveRoles(client, member);
     levels.onMemberLeave(client, member);
     verification.onMemberRemove(client, member);
@@ -237,8 +250,8 @@ function registerEvents(client) {
   client.on(Events.GuildRoleDelete, live(client, 'roleDelete', (r) => logs.roleChange(client, r, false)));
   client.on(Events.GuildRoleUpdate, live(client, 'roleUpdate', (a, b) => logs.roleUpdate(client, a, b)));
   client.on(Events.GuildUpdate, live(client, 'guildUpdate', (a, b) => logs.guildUpdate(client, a, b)));
-  client.on(Events.InviteCreate, live(client, 'inviteCreate', (i) => logs.inviteChange(client, i, true)));
-  client.on(Events.InviteDelete, live(client, 'inviteDelete', (i) => logs.inviteChange(client, i, false)));
+  client.on(Events.InviteCreate, live(client, 'inviteCreate', (i) => { invites.onInviteCreate(client, i); return logs.inviteChange(client, i, true); }));
+  client.on(Events.InviteDelete, live(client, 'inviteDelete', (i) => { invites.onInviteDelete(client, i); return logs.inviteChange(client, i, false); }));
   client.on(Events.ThreadCreate, live(client, 'threadCreate', (t) => logs.threadChange(client, t, true)));
   client.on(Events.ThreadDelete, live(client, 'threadDelete', (t) => logs.threadChange(client, t, false)));
   client.on(Events.VoiceStateUpdate, live(client, 'voice', async (a, b) => {
@@ -249,6 +262,7 @@ function registerEvents(client) {
   /** Journal d'audit : anti-nuke + expulsions (non couvertes par GuildMemberRemove). */
   client.on(Events.GuildAuditLogEntryCreate, live(client, 'auditEntry', async (entry, guild) => {
     await protection.onAuditEntry(client, entry, guild);
+    await appeals.onAuditEntry(client, guild, entry);
     if (entry.action === AuditLogEvent.MemberKick) await logs.kick(client, guild, entry);
   }));
 
@@ -289,6 +303,7 @@ function registerEvents(client) {
           return;
         }
         if (id.startsWith('ttt:') && interaction.isButton()) { await funCommands.handleTicTacToe(client, interaction); return; }
+        if (await appeals.handleInteraction(client, interaction)) return;
         if (await tickets.handleInteraction(client, interaction)) return;
         if (await verification.handleInteraction(client, interaction)) return;
         if (await rolepanels.handleInteraction(client, interaction)) return;

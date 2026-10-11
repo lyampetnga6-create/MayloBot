@@ -120,7 +120,13 @@ async function sanction(client, o) {
 
   // MP avant l'action : après un ban/kick il n'est plus possible de contacter le membre.
   if (['warn', 'timeout', 'kick', 'ban'].includes(type)) {
-    await dmUser(client, guild, user, { type, reason, duration });
+    // Le module « Contestations » envoie son propre MP (avec le bouton « Contester ») ; sinon MP classique.
+    const appeals = require('./appeals');
+    appeals.markBotAction(guild.id, user.id, type);
+    const sent = o.noAppeal ? false : await appeals.notify(client, guild, user, {
+      type, reason, duration, moderator: auto ? null : moderator,
+    });
+    if (!sent) await dmUser(client, guild, user, { type, reason, duration });
   }
 
   const auditReason = `${moderator.tag || moderator.username}: ${reason || 'aucune raison'}`.slice(0, 450);

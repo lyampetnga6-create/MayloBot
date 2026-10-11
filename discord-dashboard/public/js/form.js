@@ -3,7 +3,7 @@
  * en interface. Chaque champ modifie directement l'objet « brouillon » qu'on lui donne
  * puis appelle `change()` ; la page décide quand enregistrer.
  */
-import { h, deepClone, randomId } from './ui.js';
+import { h, deepClone, randomId, icon } from './ui.js';
 
 let SCHEMA = { messageFields: [], variables: {} };
 export const setSchema = (s) => { SCHEMA = s; };
@@ -43,21 +43,22 @@ export function defaultsFor(fields) {
 /* ------------------------------------------------------------------ */
 /* Aides                                                               */
 /* ------------------------------------------------------------------ */
-const KIND_ICON = { text: '#', voice: '🔊', category: '📁', forum: '💬' };
+/** Préfixe texte (une <option> ne peut pas contenir d'icône). */
+const KIND_ICON = { text: '#', voice: 'vocal :', category: '', forum: 'forum :' };
 
 function channelOptions(f, ctx) {
   const kinds = f.kinds || ['text'];
   const all = ctx.meta.channels;
   const options = [];
   if (kinds.length === 1 && kinds[0] === 'category') {
-    for (const c of all.filter((x) => x.kind === 'category')) options.push({ value: c.id, label: `📁 ${c.name}` });
+    for (const c of all.filter((x) => x.kind === 'category')) options.push({ value: c.id, label: c.name });
     return options;
   }
   const cats = new Map(all.filter((c) => c.kind === 'category').map((c) => [c.id, c]));
-  for (const c of all.filter((x) => kinds.includes(x.kind) && !x.parentId)) options.push({ value: c.id, label: `${KIND_ICON[c.kind] || '#'} ${c.name}` });
+  for (const c of all.filter((x) => kinds.includes(x.kind) && !x.parentId)) options.push({ value: c.id, label: `${KIND_ICON[c.kind] ?? '#'} ${c.name}`.trim() });
   for (const cat of cats.values()) {
     for (const c of all.filter((x) => kinds.includes(x.kind) && x.parentId === cat.id)) {
-      options.push({ value: c.id, label: `${KIND_ICON[c.kind] || '#'} ${c.name}`, group: cat.name });
+      options.push({ value: c.id, label: `${KIND_ICON[c.kind] ?? '#'} ${c.name}`.trim(), group: cat.name });
     }
   }
   return options;
@@ -81,7 +82,7 @@ function buildSelect(options, value, { placeholder, label, onPick }) {
       groups.get(o.group).append(opt);
     } else sel.append(opt);
   }
-  if (value && !options.some((o) => o.value === value)) sel.append(h('option', { value }, `⚠ Introuvable (${value})`));
+  if (value && !options.some((o) => o.value === value)) sel.append(h('option', { value }, `Introuvable (${value})`));
   sel.value = value || '';
   sel.addEventListener('change', () => onPick(sel.value));
   return sel;
@@ -97,8 +98,8 @@ function multiPicker(options, selected, { max, onChange, label }) {
     selected.forEach((id, i) => {
       const o = byValue.get(id);
       chips.append(h('span', { class: 'chip' },
-        o ? o.label : `⚠ Introuvable (${id})`,
-        h('button', { type: 'button', 'aria-label': 'Retirer', onclick: () => { selected.splice(i, 1); render(); onChange(); } }, '×'),
+        o ? o.label : `Introuvable (${id})`,
+        h('button', { type: 'button', 'aria-label': 'Retirer', onclick: () => { selected.splice(i, 1); render(); onChange(); } }, icon('x', 12)),
       ));
     });
     if (selected.length) root.append(chips);
@@ -330,16 +331,16 @@ function renderList(f, obj, ctx, change) {
         card.classList.toggle('open');
         if (card.classList.contains('open')) opened.add(item);
       } },
-      h('span', { class: 'chev' }, '▸'), title, warn, h('span', { class: 'spacer' }));
+      h('span', { class: 'chev' }, icon('chevronRight', 15)), title, warn, h('span', { class: 'spacer' }));
 
       if (f.panelActions === 'rolepanel') {
         head.append(h('button', { class: 'btn btn-sm', type: 'button', title: 'Enregistre puis publie (ou met à jour) le message dans Discord',
-          onclick: (e) => { e.stopPropagation(); ctx.actions?.publishRolePanel(item); } }, item.messageId ? '↻ Mettre à jour sur Discord' : '📤 Publier'));
+          onclick: (e) => { e.stopPropagation(); ctx.actions?.publishRolePanel(item); } }, item.messageId ? [icon('refresh', 14), 'Mettre à jour sur Discord'] : [icon('upload', 14), 'Publier']));
       }
       head.append(
-        h('button', { class: 'icon-btn', type: 'button', title: 'Monter', disabled: i === 0, onclick: () => { [items[i - 1], items[i]] = [items[i], items[i - 1]]; render(); change(); } }, '↑'),
-        h('button', { class: 'icon-btn', type: 'button', title: 'Descendre', disabled: i === items.length - 1, onclick: () => { [items[i + 1], items[i]] = [items[i], items[i + 1]]; render(); change(); } }, '↓'),
-        h('button', { class: 'icon-btn danger', type: 'button', title: 'Supprimer', onclick: () => { items.splice(i, 1); render(); change(); } }, '✕'),
+        h('button', { class: 'icon-btn', type: 'button', title: 'Monter', disabled: i === 0, onclick: () => { [items[i - 1], items[i]] = [items[i], items[i - 1]]; render(); change(); } }, icon('arrowUp', 15)),
+        h('button', { class: 'icon-btn', type: 'button', title: 'Descendre', disabled: i === items.length - 1, onclick: () => { [items[i + 1], items[i]] = [items[i], items[i + 1]]; render(); change(); } }, icon('arrowDown', 15)),
+        h('button', { class: 'icon-btn danger', type: 'button', title: 'Supprimer', onclick: () => { items.splice(i, 1); render(); change(); } }, icon('x', 15)),
       );
 
       const body = h('div', { class: 'list-item-body' }, renderFields(f.fields, item, ctx, () => { refreshHead(); change(); }));

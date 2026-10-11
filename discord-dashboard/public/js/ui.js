@@ -1,4 +1,7 @@
 /* Utilitaires d'interface : création de DOM sûre (jamais d'innerHTML), toasts, dialogues, formats. */
+import { icon } from './icons.js';
+
+export { icon };
 
 /** h('div', { class: 'x', onclick: fn }, enfant1, [enfant2, …]) → HTMLElement */
 export function h(tag, attrs, ...children) {
@@ -122,17 +125,18 @@ export function loading(text = 'Chargement…') {
   return h('div', { class: 'loading' }, h('div', null, h('div', { class: 'spinner' }), text));
 }
 
-export function emptyState(emoji, text) {
-  return h('div', { class: 'empty' }, h('div', { class: 'big' }, emoji), h('div', null, text));
+/** État vide : une icône dans une pastille + un texte. */
+export function emptyState(iconName, text) {
+  return h('div', { class: 'empty' }, h('div', { class: 'big' }, icon(iconName, 26)), h('div', null, text));
 }
 
 export function pager({ page, pageSize, total }, onPage) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (pages <= 1) return null;
   return h('div', { class: 'pager' },
-    h('button', { class: 'btn btn-sm', disabled: page <= 1, onclick: () => onPage(page - 1) }, '← Précédent'),
+    h('button', { class: 'btn btn-sm', disabled: page <= 1, onclick: () => onPage(page - 1) }, icon('arrowLeft', 15), 'Précédent'),
     h('span', null, `Page ${page} / ${pages}`),
-    h('button', { class: 'btn btn-sm', disabled: page >= pages, onclick: () => onPage(page + 1) }, 'Suivant →'),
+    h('button', { class: 'btn btn-sm', disabled: page >= pages, onclick: () => onPage(page + 1) }, 'Suivant', icon('arrowRight', 15)),
   );
 }
 

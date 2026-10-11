@@ -7,4 +7,5 @@ module.exports = (kit) => [
   ...require('./community')(kit),
   ...require('./fun')(kit),
   ...require('./automation')(kit),
+  ...require('./growth')(kit),
 ];

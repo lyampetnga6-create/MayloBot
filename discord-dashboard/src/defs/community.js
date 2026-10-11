@@ -6,7 +6,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'giveaways',
     category: 'community',
     name: 'Concours (giveaways)',
-    icon: '🎉',
+    icon: 'gift',
     description: 'Concours avec bouton de participation, conditions, entrées bonus et tirage automatique (/concours).',
     toggle: 'enabled',
     fields: [
@@ -31,7 +31,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'starboard',
     category: 'community',
     name: 'Starboard',
-    icon: '⭐',
+    icon: 'star',
     description: 'Les messages qui reçoivent assez d’étoiles sont mis en avant dans un salon dédié.',
     toggle: 'enabled',
     fields: [
@@ -51,7 +51,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'counting',
     category: 'community',
     name: 'Jeu du comptage',
-    icon: '🔢',
+    icon: 'hash',
     description: 'Les membres comptent à tour de rôle : 1, 2, 3… Une erreur et on recommence.',
     toggle: 'enabled',
     fields: [
@@ -70,7 +70,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'birthdays',
     category: 'community',
     name: 'Anniversaires',
-    icon: '🎂',
+    icon: 'cake',
     description: 'Les membres enregistrent leur date avec /anniversaire, le bot souhaite la fête et donne un rôle pour la journée.',
     toggle: 'enabled',
     fields: [
@@ -91,7 +91,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'reputation',
     category: 'community',
     name: 'Réputation',
-    icon: '👍',
+    icon: 'thumbsUp',
     description: 'Les membres se donnent des points de réputation avec /rep, avec des rôles à la clé.',
     toggle: 'enabled',
     fields: [
@@ -112,7 +112,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'confessions',
     category: 'community',
     name: 'Confessions anonymes',
-    icon: '🤫',
+    icon: 'eyeOff',
     description: 'Les membres envoient un message anonyme avec /confession ; le staff peut retrouver l’auteur en cas d’abus.',
     toggle: 'enabled',
     fields: [
@@ -133,7 +133,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'bump',
     category: 'community',
     name: 'Rappel de bump',
-    icon: '📈',
+    icon: 'megaphone',
     description: 'Rappelle de « bumper » le serveur (Disboard…) 2 heures après le dernier bump.',
     toggle: 'enabled',
     fields: [
@@ -153,7 +153,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'boosts',
     category: 'community',
     name: 'Remerciement des boosts',
-    icon: '💎',
+    icon: 'gem',
     description: 'Un message personnalisé quand quelqu’un booste le serveur.',
     toggle: 'enabled',
     fields: [

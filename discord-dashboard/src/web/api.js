@@ -17,6 +17,9 @@ const profile = require('../bot/modules/profile');
 const builder = require('../bot/modules/server-builder');
 const templates = require('../lib/server-templates');
 const honeypot = require('../bot/modules/honeypot');
+const feeds = require('../bot/modules/feeds');
+const invitesModule = require('../bot/modules/invites');
+const serverstats = require('../bot/modules/serverstats');
 const verification = require('../bot/modules/verification');
 const protection = require('../bot/modules/protection');
 const { LicenseService, LicenseError } = require('../lib/license');
@@ -386,6 +389,68 @@ function createApiRouter({ client, db, settings, config }) {
     const r = db.prepare('DELETE FROM cases WHERE id = ? AND guild_id = ?').run(Number(req.params.id) || 0, req.guild.id);
     if (!r.changes) throw new HttpError(404, 'Dossier introuvable.');
     res.json({ ok: true });
+  });
+
+  /* --- Contestations --- */
+  guildRouter.get('/appeals', async (req, res) => {
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const where = ['guild_id = ?'];
+    const args = [req.guild.id];
+    if (['open', 'accepted', 'refused'].includes(req.query.status)) { where.push('status = ?'); args.push(req.query.status); }
+    const clause = where.join(' AND ');
+    const rows = db.prepare(`SELECT * FROM appeals WHERE ${clause} ORDER BY (status = 'open') DESC, id DESC LIMIT ? OFFSET ?`).all(...args, PAGE_SIZE, (page - 1) * PAGE_SIZE);
+    const users = await resolveUsers(rows.flatMap((r) => [r.user_id, r.decided_by].filter(Boolean)));
+    const stat = (status) => countQuery('SELECT COUNT(*) AS n FROM appeals WHERE guild_id = ? AND status = ?', req.guild.id, status);
+    res.json({
+      page,
+      pageSize: PAGE_SIZE,
+      total: countQuery(`SELECT COUNT(*) AS n FROM appeals WHERE ${clause}`, ...args),
+      stats: { open: stat('open'), accepted: stat('accepted'), refused: stat('refused') },
+      rows: rows.map((r) => {
+        let answers = [];
+        try { answers = JSON.parse(r.answers || '[]'); } catch { /* ligne abîmée */ }
+        return {
+          id: r.id, type: r.type, status: r.status, final: Boolean(r.final), caseId: r.case_id, answers,
+          channelId: r.channel_id && req.guild.channels.cache.has(r.channel_id) ? r.channel_id : '',
+          createdAt: r.created_at, decidedAt: r.decided_at, reason: r.decision_reason,
+          user: users[r.user_id], decidedBy: r.decided_by ? users[r.decided_by] : null,
+        };
+      }),
+    });
+  });
+
+  /* --- Flux YouTube / RSS --- */
+  guildRouter.get('/feeds/status', (req, res) => {
+    res.json({ rows: feeds.statuses(client, req.guild.id, settings.module(req.guild.id, 'feeds').feeds) });
+  });
+
+  guildRouter.post('/actions/feeds-test/:feedId', requireAdmin, async (req, res) => {
+    const feed = settings.module(req.guild.id, 'feeds').feeds.find((f) => f.id === req.params.feedId);
+    if (!feed) throw new HttpError(404, 'Flux introuvable : enregistre d’abord tes modifications.');
+    try {
+      const sent = await feeds.testFeed(client, req.guild, feed);
+      record(req, 'feeds', `Test du flux ${feed.name || feed.url}`);
+      res.json({ ok: true, url: sent?.url || '' });
+    } catch (err) {
+      throw new HttpError(400, err.message);
+    }
+  });
+
+  /* --- Invitations --- */
+  guildRouter.get('/invites', async (req, res) => {
+    const rows = invitesModule.leaderboard(client, req.guild.id, 15);
+    const users = await resolveUsers(rows.map((r) => r.userId));
+    res.json({ rows: rows.map((r) => ({ ...r, user: users[r.userId] })) });
+  });
+
+  /* --- Statistiques --- */
+  guildRouter.get('/stats', (req, res) => {
+    const report = serverstats.report(client, req.guild.id, req.query.days);
+    res.json({
+      ...report,
+      memberCount: req.guild.memberCount,
+      channels: report.channels.map((c) => ({ ...c, name: req.guild.channels.cache.get(c.channelId)?.name || '' })),
+    });
   });
 
   /* --- Tickets --- */

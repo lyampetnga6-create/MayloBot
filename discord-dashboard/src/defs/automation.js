@@ -6,7 +6,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'tempvoice',
     category: 'automation',
     name: 'Vocaux temporaires',
-    icon: '🔊',
+    icon: 'volume',
     description: 'Un membre rejoint un salon « créer », le bot lui crée son salon vocal personnel (supprimé quand il est vide).',
     toggle: 'enabled',
     fields: [
@@ -27,7 +27,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'counters',
     category: 'automation',
     name: 'Salons compteurs',
-    icon: '🔢',
+    icon: 'activity',
     description: 'Renomme des salons avec des statistiques en direct (membres, boosts…), toutes les 10 minutes.',
     toggle: 'enabled',
     fields: [
@@ -47,7 +47,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'channelrules',
     category: 'automation',
     name: 'Règles de salon',
-    icon: '📐',
+    icon: 'ruler',
     description: 'Réactions automatiques, fils auto, publication des annonces, suppression différée, salons « images seulement »…',
     toggle: 'enabled',
     fields: [
@@ -74,7 +74,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'automessages',
     category: 'automation',
     name: 'Messages programmés',
-    icon: '⏰',
+    icon: 'alarm',
     description: 'Envoie un message à intervalle régulier ou chaque jour à heure fixe.',
     toggle: 'enabled',
     fields: [
@@ -97,7 +97,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'sticky',
     category: 'automation',
     name: 'Messages collants',
-    icon: '📌',
+    icon: 'pin',
     description: 'Un message qui reste toujours en bas d’un salon (le bot le renvoie après quelques messages).',
     toggle: 'enabled',
     fields: [
@@ -116,7 +116,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     id: 'nickname',
     category: 'automation',
     name: 'Pseudos',
-    icon: '🏷️',
+    icon: 'type',
     description: 'Nettoie les pseudos : caractères qui font remonter en haut de la liste, mots interdits, format imposé à l’arrivée.',
     toggle: 'enabled',
     fields: [

@@ -5,7 +5,7 @@ module.exports = ({ t }) => [
     id: 'economy',
     category: 'fun',
     name: 'Économie',
-    icon: '🪙',
+    icon: 'coins',
     description: 'Monnaie virtuelle : récompense quotidienne, travail, paris, boutique de rôles et d’objets (/solde, /daily, /boutique…).',
     toggle: 'enabled',
     fields: [
@@ -41,7 +41,7 @@ module.exports = ({ t }) => [
     id: 'fun',
     category: 'fun',
     name: 'Jeux & divertissement',
-    icon: '🎲',
+    icon: 'gamepad',
     description: 'Commandes amusantes : 8ball, dés, pierre-feuille-ciseaux, morpion, quiz, blagues, câlins…',
     toggle: 'enabled',
     fields: [

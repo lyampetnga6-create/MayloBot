@@ -41,11 +41,20 @@ const VARIABLE_DOCS = {
   id: 'Numéro / identifiant',
   content: 'Contenu du message',
   stars: 'Nombre d’étoiles',
-  link: 'Lien vers le message',
+  link: 'Lien (message ou publication)',
   age: 'Âge',
   rating: 'Note donnée',
   coins: 'Montant',
   boosts: 'Nombre de boosts du serveur',
+  sanction: 'Type de sanction (Bannissement, Expulsion…)',
+  duration: 'Durée de la sanction',
+  case: 'Numéro du dossier',
+  title: 'Titre de la publication',
+  author: 'Auteur ou chaîne',
+  feed: 'Nom du flux',
+  inviter: 'Mention de la personne qui a invité',
+  'inviter.name': 'Nom de la personne qui a invité',
+  invites: 'Invitations actives de l’inviteur',
 };
 
 const MEMBER_VARS = ['user', 'user.name', 'user.id', 'user.avatar', 'user.created', 'server', 'server.icon', 'memberCount'];
@@ -292,7 +301,7 @@ const MODULES = [
     id: 'general',
     category: 'essentials',
     name: 'Général',
-    icon: '⚙️',
+    icon: 'sliders',
     description: 'Apparence des messages du bot, fuseau horaire et commandes autorisées.',
     fields: [
       t.heading('Apparence', 'Le pseudo, l’avatar et la bannière du bot sur ce serveur se règlent dans « Profil du bot ».'),
@@ -311,7 +320,7 @@ const MODULES = [
     id: 'welcome',
     category: 'essentials',
     name: 'Bienvenue',
-    icon: '👋',
+    icon: 'userPlus',
     description: 'Accueille (et salue le départ) des membres avec des messages entièrement personnalisables.',
     toggle: 'enabled',
     fields: [
@@ -323,7 +332,7 @@ const MODULES = [
         description: 'Passe lire les règles et présente-toi. Bon séjour parmi nous !',
         thumbnail: '{user.avatar}',
         timestamp: true,
-      }), { variables: MEMBER_VARS }),
+      }), { variables: [...MEMBER_VARS, 'inviter', 'inviter.name', 'invites'] }),
       t.number('deleteAfter', 'Supprimer le message après (secondes, 0 = jamais)', 0, 0, 86400),
       t.heading('Message privé', 'Envoyé en MP au nouveau membre (si ses MP sont ouverts).'),
       t.toggle('dmEnabled', 'Envoyer un MP de bienvenue', false),
@@ -340,7 +349,7 @@ const MODULES = [
     id: 'autorole',
     category: 'essentials',
     name: 'Rôles automatiques',
-    icon: '🎭',
+    icon: 'tag',
     description: 'Donne des rôles aux nouveaux arrivants et rend leurs anciens rôles à ceux qui reviennent.',
     toggle: 'enabled',
     fields: [
@@ -359,7 +368,7 @@ const MODULES = [
     id: 'automod',
     category: 'security',
     name: 'Auto-modération',
-    icon: '🛡️',
+    icon: 'shield',
     description: 'Filtre invitations, liens, majuscules, spam, mentions, émojis, mots interdits, pièces jointes…',
     toggle: 'enabled',
     fields: [
@@ -430,7 +439,7 @@ const MODULES = [
     id: 'moderation',
     category: 'security',
     name: 'Modération',
-    icon: '🔨',
+    icon: 'gavel',
     description: 'Sanctions, historique et escalade automatique selon le nombre d’avertissements.',
     fields: [
       t.heading('Général'),
@@ -453,7 +462,7 @@ const MODULES = [
     id: 'levels',
     category: 'community',
     name: 'Niveaux & XP',
-    icon: '📈',
+    icon: 'chart',
     description: 'Système d’XP, annonces de niveau et récompenses en rôles.',
     toggle: 'enabled',
     fields: [
@@ -495,7 +504,7 @@ const MODULES = [
     category: 'support',
     extras: 'tickets',
     name: 'Tickets',
-    icon: '🎫',
+    icon: 'ticket',
     description: 'Support par salons privés : sujets et formulaires, prise en charge, IA, notes, transcripts…',
     toggle: 'enabled',
     fields: [
@@ -627,7 +636,7 @@ const MODULES = [
     id: 'rolepanels',
     category: 'automation',
     name: 'Rôles à boutons',
-    icon: '🔘',
+    icon: 'circleDot',
     description: 'Messages avec boutons pour que les membres choisissent leurs rôles.',
     fields: [
       t.list('panels', 'Panneaux', [
@@ -655,7 +664,7 @@ const MODULES = [
     id: 'commands',
     category: 'automation',
     name: 'Commandes perso',
-    icon: '💬',
+    icon: 'message',
     description: 'Crée tes propres commandes à préfixe et des réponses automatiques.',
     toggle: 'enabled',
     fields: [
@@ -686,7 +695,7 @@ const MODULES = [
     id: 'logs',
     category: 'security',
     name: 'Journaux',
-    icon: '📜',
+    icon: 'scroll',
     description: 'Garde une trace de tout ce qui se passe, avec un salon différent par type d’événement si tu veux.',
     toggle: 'enabled',
     fields: [

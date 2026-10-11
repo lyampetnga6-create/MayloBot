@@ -7,7 +7,7 @@ module.exports = ({ t }) => [
     category: 'essentials',
     extras: 'ai',
     name: 'Intelligence artificielle',
-    icon: '🧠',
+    icon: 'sparkles',
     description: 'Choisis le fournisseur d’IA, ta clé d’API et les commandes IA. Sert aussi aux tickets et au créateur de serveur.',
     toggle: 'enabled',
     fields: [

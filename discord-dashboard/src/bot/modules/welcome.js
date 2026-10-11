@@ -1,6 +1,7 @@
 'use strict';
 const { buildMessage, memberVars, userVars } = require('../../lib/template');
 const { getSendable, safeSend, deleteLater } = require('../util');
+const invites = require('./invites');
 
 async function onMemberAdd(client, member) {
   const { guild } = member;
@@ -22,7 +23,7 @@ async function onMemberAdd(client, member) {
 
   /* --- Bienvenue --- */
   if (!welcome.enabled || member.user.bot) return;
-  const vars = memberVars(member);
+  const vars = { ...memberVars(member), ...(await invites.inviterVars(client, guild, member.id)) };
 
   if (welcome.channelId) {
     const payload = buildMessage(welcome.message, vars, settings.general);

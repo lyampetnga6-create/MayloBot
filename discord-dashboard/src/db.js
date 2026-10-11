@@ -323,6 +323,55 @@ function openDatabase(file) {
       owner_id   TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS appeals (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id        TEXT NOT NULL,
+      user_id         TEXT NOT NULL,
+      case_id         INTEGER NOT NULL,
+      type            TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'open',
+      final           INTEGER NOT NULL DEFAULT 0,
+      channel_id      TEXT NOT NULL DEFAULT '',
+      message_id      TEXT,
+      answers         TEXT NOT NULL DEFAULT '[]',
+      created_at      INTEGER NOT NULL,
+      decided_at      INTEGER,
+      decided_by      TEXT,
+      decision_reason TEXT NOT NULL DEFAULT '',
+      close_at        INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_appeals_guild ON appeals (guild_id, status);
+    CREATE INDEX IF NOT EXISTS idx_appeals_case ON appeals (guild_id, case_id);
+    CREATE INDEX IF NOT EXISTS idx_appeals_close ON appeals (close_at);
+
+    CREATE TABLE IF NOT EXISTS invite_joins (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id   TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      inviter_id TEXT,
+      code       TEXT NOT NULL DEFAULT '',
+      joined_at  INTEGER NOT NULL,
+      left_at    INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_invite_joins_inviter ON invite_joins (guild_id, inviter_id);
+    CREATE INDEX IF NOT EXISTS idx_invite_joins_user ON invite_joins (guild_id, user_id);
+
+    CREATE TABLE IF NOT EXISTS daily_stats (
+      guild_id TEXT NOT NULL,
+      day      TEXT NOT NULL,
+      joins    INTEGER NOT NULL DEFAULT 0,
+      leaves   INTEGER NOT NULL DEFAULT 0,
+      messages INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (guild_id, day)
+    );
+    CREATE TABLE IF NOT EXISTS channel_stats (
+      guild_id   TEXT NOT NULL,
+      day        TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      messages   INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (guild_id, day, channel_id)
+    );
+
     CREATE TABLE IF NOT EXISTS pending_verification (
       guild_id  TEXT NOT NULL,
       user_id   TEXT NOT NULL,

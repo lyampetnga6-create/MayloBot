@@ -1,11 +1,11 @@
 'use strict';
 
-module.exports = ({ t, msg }) => [
+module.exports = ({ t, msg, MEMBER_VARS }) => [
   {
     id: 'suggestions',
     category: 'support',
     name: 'Suggestions',
-    icon: '💡',
+    icon: 'lightbulb',
     description: 'Les membres proposent des idées avec /suggestion, la communauté vote, le staff approuve ou refuse.',
     toggle: 'enabled',
     fields: [
@@ -24,6 +24,61 @@ module.exports = ({ t, msg }) => [
       t.color('pendingColor', 'En attente', '#8b5cf6'),
       t.color('approvedColor', 'Approuvée', '#34d399'),
       t.color('deniedColor', 'Refusée', '#ef4444'),
+    ],
+  },
+  {
+    id: 'appeals',
+    category: 'support',
+    name: 'Contestations',
+    icon: 'scale',
+    description: 'À chaque sanction, le membre reçoit un MP avec la raison et un bouton pour contester. Sa demande ouvre un salon privé où le staff accepte ou refuse.',
+    toggle: 'enabled',
+    fields: [
+      t.toggle('enabled', 'Activer les contestations', false),
+      t.group('types', 'Sanctions qui peuvent être contestées', [
+        t.toggle('ban', 'Bannissement', true),
+        t.toggle('kick', 'Expulsion', true),
+        t.toggle('timeout', 'Exclusion temporaire', true),
+        t.toggle('warn', 'Avertissement', false),
+      ]),
+      t.heading('Salon du staff', 'Chaque contestation ouvre un salon privé, visible seulement par le staff.'),
+      t.channel('categoryId', 'Catégorie où créer les salons', ['category']),
+      t.roles('staffRoles', 'Rôles du staff qui traitent les contestations (vide = tous les rôles qui peuvent bannir ou exclure)'),
+      t.toggle('pingStaff', 'Mentionner ces rôles à chaque nouvelle contestation', true),
+      t.channel('logChannelId', 'Salon des décisions (vide = salon de logs de modération)', ['text']),
+      t.number('autoCloseHours', 'Supprimer le salon après la décision (heures, 0 = jamais)', 24, 0, 720),
+      t.heading('Règles'),
+      t.number('expireDays', 'Délai pour contester (jours, 0 = illimité)', 30, 0, 365),
+      t.number('maxAppeals', 'Nombre maximum de contestations par sanction', 1, 1, 10),
+      t.number('cooldownHours', 'Délai avant de pouvoir recontester (heures)', 24, 0, 720),
+      t.number('minLength', 'Longueur minimale de l’explication (caractères)', 20, 0, 500),
+      t.list('questions', 'Questions supplémentaires du formulaire (3 maximum)', [
+        t.text('label', 'Question', '', { maxLength: 45 }),
+        t.toggle('required', 'Réponse obligatoire', true),
+      ], { max: 3, required: ['label'], itemSummary: '{label}', addLabel: 'Ajouter une question' }),
+      t.heading('Options'),
+      t.toggle('requireReason', 'Exiger un motif pour accepter ou refuser', false),
+      t.toggle('showModerator', 'Montrer le modérateur dans le MP de sanction', false),
+      t.toggle('allowStaffMessage', 'Permettre au staff d’écrire au membre depuis le salon', true),
+      t.toggle('inviteOnAccept', 'Envoyer une invitation à usage unique si un ban ou une expulsion est levé', true),
+      t.channel('inviteChannelId', 'Salon de l’invitation (vide = salon des règles)', ['text'], { showIf: { key: 'inviteOnAccept', eq: true } }),
+      t.heading('Messages envoyés au membre', 'Laisse vide pour utiliser le message par défaut.'),
+      t.message('dm', 'MP de sanction (avec le bouton « Contester »)', msg('', {
+        title: '{sanction} sur {server}',
+        description: '**Raison :** {reason}\n\nSi tu penses que c’est une erreur, tu peux contester avec le bouton ci-dessous.',
+        color: '#8b5cf6',
+      }), { variables: [...MEMBER_VARS, 'sanction', 'reason', 'duration'] }),
+      t.message('received', 'Confirmation après l’envoi de la contestation', msg('Ta contestation a bien été transmise à l’équipe de **{server}**. Tu recevras la réponse ici, en message privé.'), { variables: [...MEMBER_VARS, 'sanction', 'case'] }),
+      t.message('accepted', 'MP : contestation acceptée', msg('', {
+        title: 'Contestation acceptée',
+        description: 'Bonne nouvelle, la sanction **{sanction}** sur **{server}** a été levée.\n\n{reason}',
+        color: '#34d399',
+      }), { variables: [...MEMBER_VARS, 'sanction', 'reason', 'case'] }),
+      t.message('refused', 'MP : contestation refusée', msg('', {
+        title: 'Contestation refusée',
+        description: 'Ta contestation de la sanction **{sanction}** sur **{server}** a été refusée.\n\n{reason}',
+        color: '#ef4444',
+      }), { variables: [...MEMBER_VARS, 'sanction', 'reason', 'case'] }),
     ],
   },
 ];

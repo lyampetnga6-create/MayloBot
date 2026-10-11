@@ -9,11 +9,11 @@
  *   x.reloadMeta()    recharge la liste des salons / rôles
  */
 import { api } from './api.js';
-import { h, toast, confirmDialog, fmtDate } from './ui.js';
+import { h, toast, confirmDialog, fmtDate, icon, who } from './ui.js';
 import { state } from './state.js';
 
 const panel = (title, ...children) => h('div', { class: 'card' }, h('h3', null, title), ...children);
-const linkToast = (text, url) => toast(h('span', null, `${text} `, h('a', { href: url, target: '_blank', rel: 'noopener' }, 'Voir sur Discord ↗')));
+const linkToast = (text, url) => toast(h('span', null, `${text} `, h('a', { href: url, target: '_blank', rel: 'noopener' }, 'Voir sur Discord')));
 
 /** Exécute une action en désactivant le bouton pendant l'appel. */
 const busy = (fn) => async (e) => {
@@ -34,7 +34,7 @@ function tickets(x) {
         if (!x.saved().panelChannelId) { toast('Choisis d’abord un « salon du panneau » puis enregistre.', 'warn'); return; }
         const r = await api.post(x.url('/actions/ticket-panel'));
         linkToast('Panneau publié.', r.url);
-      }) }, '📤 Publier le panneau'),
+      }) }, icon('upload', 16), 'Publier le panneau'),
       h('span', { class: 'muted' }, 'Tu peux aussi utiliser la commande /ticket panel.')));
 }
 
@@ -62,7 +62,7 @@ function ai(x) {
             if (key.length < 8) { toast('La clé semble trop courte.', 'warn'); return; }
             await api.put(x.url('/ai/key'), { key });
             keyInput.value = '';
-            toast('Clé enregistrée ✓');
+            toast('Clé enregistrée');
             await load();
           }) }, st.guildKeySet ? 'Remplacer la clé' : 'Enregistrer la clé'),
           st.guildKeySet ? h('button', { class: 'btn btn-danger', disabled: !x.isAdmin, onclick: busy(async () => {
@@ -75,8 +75,8 @@ function ai(x) {
         h('button', { class: 'btn', disabled: !st.ready, onclick: busy(async () => {
           testOut.textContent = 'Test en cours…';
           const r = await api.post(x.url('/ai/test'));
-          testOut.textContent = r.ok ? `✅ Réponse reçue : « ${r.answer} »` : `❌ ${r.error}`;
-        }) }, '🧪 Tester la connexion'), testOut),
+          testOut.textContent = r.ok ? `Réponse reçue : « ${r.answer} »` : `Échec : ${r.error}`;
+        }) }, icon('flask', 16), 'Tester la connexion'), testOut),
     );
   }
   load();
@@ -96,7 +96,7 @@ function protection(x) {
     const raidOn = st.raidModeUntil && st.raidModeUntil > Date.now();
     box.replaceChildren(h('div', { class: 'big-actions' },
       h('div', { class: `action-tile${st.lockdown ? ' is-on' : ''}` },
-        h('strong', null, '🔒 Verrouillage du serveur', st.lockdown ? h('span', { class: 'pill bad' }, 'actif') : null),
+        h('strong', null, icon('lock', 17), 'Verrouillage du serveur', st.lockdown ? h('span', { class: 'pill bad' }, 'actif') : null),
         h('p', null, 'Empêche tout le monde (sauf le staff) d’écrire dans les salons. Un seul clic pour tout rouvrir ensuite.'),
         h('button', { class: `btn ${st.lockdown ? 'btn-primary' : 'btn-danger'}`, disabled: !x.isAdmin, onclick: busy(async () => {
           const on = !st.lockdown;
@@ -108,9 +108,9 @@ function protection(x) {
           const r = await api.post(x.url('/actions/lockdown'), { on });
           toast(`${on ? 'Serveur verrouillé' : 'Serveur déverrouillé'} (${r.changed} salon${r.changed > 1 ? 's' : ''}).`);
           await load();
-        }) }, st.lockdown ? '🔓 Déverrouiller' : '🔒 Verrouiller')),
+        }) }, st.lockdown ? [icon('unlock', 16), 'Déverrouiller'] : [icon('lock', 16), 'Verrouiller'])),
       h('div', { class: `action-tile${raidOn ? ' is-on' : ''}` },
-        h('strong', null, '🚨 Mode raid', raidOn ? h('span', { class: 'pill bad' }, `jusqu’à ${fmtDate(st.raidModeUntil)}`) : null),
+        h('strong', null, icon('siren', 17), 'Mode raid', raidOn ? h('span', { class: 'pill bad' }, `jusqu’à ${fmtDate(st.raidModeUntil)}`) : null),
         h('p', null, 'Durcit temporairement les règles : seuils plus bas pour le spam et les arrivées en masse.'),
         raidOn ? null : minutes,
         h('button', { class: `btn ${raidOn ? 'btn-primary' : 'btn-danger'}`, disabled: !x.isAdmin, onclick: busy(async () => {
@@ -136,7 +136,7 @@ function honeypot(x) {
           if (!(await x.saveFirst())) return;
           const r = await api.post(x.url('/actions/honeypot-warning'), { channelId: id });
           linkToast('Avertissement publié.', r.url);
-        }) }, '📌 Publier l’avertissement'));
+        }) }, icon('pin', 15), 'Publier l’avertissement'));
     }));
     if (!ids.length) list.append(h('div', { class: 'list-empty' }, 'Aucun salon piège pour l’instant. Crée-en un avec le bouton ci-dessus.'));
   };
@@ -148,8 +148,8 @@ function honeypot(x) {
         const r = await api.post(x.url('/actions/honeypot-create'));
         await x.reloadMeta();
         x.applySaved(r.settings);
-        toast('Salon piège créé ✓ Pense à publier l’avertissement.');
-      }) }, '🍯 Créer un salon piège'),
+        toast('Salon piège créé. Pense à publier l’avertissement.');
+      }) }, icon('target', 16), 'Créer un salon piège'),
       x.isAdmin ? null : h('span', { class: 'muted' }, 'Réservé aux administrateurs.')),
     list);
 }
@@ -162,7 +162,60 @@ function verification(x) {
       if (!(await x.saveFirst())) return;
       const r = await api.post(x.url('/actions/verification-panel'));
       linkToast('Panneau de vérification publié.', r.url);
-    }) }, '📤 Publier le panneau'));
+    }) }, icon('upload', 16), 'Publier le panneau'));
 }
 
-export const EXTRAS = { tickets, ai, protection, honeypot, verification };
+/* ------------------------------ Flux YouTube / RSS ------------------------------ */
+function feeds(x) {
+  const box = h('div');
+  async function load() {
+    let st;
+    try { st = await api.get(x.url('/feeds/status')); } catch (err) { box.replaceChildren(h('div', { class: 'banner bad' }, err.message)); return; }
+    const feedList = x.saved().feeds || [];
+    if (!feedList.length) { box.replaceChildren(h('p', { class: 'muted' }, 'Ajoute un flux puis enregistre : son état s’affichera ici.')); return; }
+    const byId = new Map(st.rows.map((r) => [r.id, r]));
+    box.replaceChildren(h('div', { class: 'table-wrap' }, h('table', null,
+      h('thead', null, h('tr', null, ['Flux', 'État', 'Dernière vérification', ''].map((t) => h('th', null, t)))),
+      h('tbody', null, feedList.map((f) => {
+        const s = byId.get(f.id);
+        const state = !s || !s.checkedAt ? h('span', { class: 'pill' }, 'Pas encore vérifié')
+          : s.error ? h('span', { class: 'pill bad', title: s.error }, 'Erreur')
+            : h('span', { class: 'pill good' }, 'Fonctionne');
+        return h('tr', null,
+          h('td', null, f.name || f.url, s?.error ? h('div', { class: 'muted' }, s.error) : null),
+          h('td', null, state),
+          h('td', { class: 'muted' }, s?.checkedAt ? fmtDate(s.checkedAt) : '—'),
+          h('td', { class: 'ta-r' }, h('button', { class: 'btn btn-sm', disabled: !x.isAdmin, onclick: busy(async () => {
+            if (!(await x.saveFirst())) return;
+            const r = await api.post(x.url(`/actions/feeds-test/${encodeURIComponent(f.id)}`));
+            if (r.url) linkToast('Dernière publication envoyée.', r.url); else toast('Dernière publication envoyée.');
+            load();
+          }) }, icon('send', 14), 'Tester')));
+      })))));
+  }
+  load();
+  return panel('État des flux',
+    h('p', { class: 'muted' }, 'Le bot vérifie les flux régulièrement. Au premier passage il mémorise les publications existantes sans rien poster, puis annonce uniquement les nouvelles. « Tester » envoie la dernière publication dans le salon choisi.'),
+    box);
+}
+
+/* -------------------------------- Invitations -------------------------------- */
+function invites(x) {
+  const box = h('div');
+  (async () => {
+    try {
+      const { rows } = await api.get(x.url('/invites'));
+      box.replaceChildren(rows.length
+        ? h('div', { class: 'table-wrap' }, h('table', null,
+          h('thead', null, h('tr', null, ['#', 'Membre', 'Actives', 'Total', 'Parties'].map((t) => h('th', null, t)))),
+          h('tbody', null, rows.map((r, i) => h('tr', null,
+            h('td', { class: 'muted' }, i + 1), h('td', null, who(r.user)), h('td', null, h('strong', null, r.active)), h('td', null, r.total), h('td', { class: 'muted' }, r.left))))))
+        : h('p', { class: 'muted' }, 'Personne n’a encore invité de membre depuis l’activation du module.'));
+    } catch (err) { box.replaceChildren(h('div', { class: 'banner bad' }, err.message)); }
+  })();
+  return panel('Classement des inviteurs',
+    h('p', { class: 'muted' }, 'Le bot a besoin de la permission « Gérer le serveur » pour voir quelle invitation a été utilisée. Seules les arrivées après l’activation sont comptées. Commandes : /invitations membre et /invitations classement.'),
+    box);
+}
+
+export const EXTRAS = { tickets, ai, protection, honeypot, verification, feeds, invites };

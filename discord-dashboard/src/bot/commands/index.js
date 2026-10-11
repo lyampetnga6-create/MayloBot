@@ -14,6 +14,8 @@ const files = [
   require('./fun'),
   require('./ai'),
   require('./licence'),
+  require('./appeals'),
+  require('./invites'),
 ];
 
 const MAX_COMMANDS = 100;

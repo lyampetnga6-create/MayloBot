@@ -3,7 +3,7 @@
 Un bot Discord **modulaire** et son **dashboard web** pour le configurer, dans un seul projet Node.js.
 Les administrateurs se connectent avec Discord, choisissent leur serveur et règlent chaque module depuis le site.
 
-- **31 modules** réglables, plus de **470 options** (liste dans [FEATURES.md](FEATURES.md))
+- **35 modules** réglables, plus de **500 options** (liste dans [FEATURES.md](FEATURES.md))
 - **84 commandes slash**
 - Tickets avec **IA configurable**, **protections** (anti-raid, anti-nuke, verrouillage), **honeypot**, **journaux**
 - **Webhooks** et bibliothèque de **messages enregistrés sans limite**

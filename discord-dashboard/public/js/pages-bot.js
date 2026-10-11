@@ -6,15 +6,15 @@ import { api } from './api.js';
 import { state, makeCtx } from './state.js';
 import { renderFields, defaultValue } from './form.js';
 import {
-  h, toast, confirmDialog, loading, emptyState, pager, fmtDate, who, deepClone,
+  h, toast, confirmDialog, loading, emptyState, pager, fmtDate, who, deepClone, icon,
 } from './ui.js';
 
 const gurl = (path = '') => `/api/guilds/${state.guildId}${path}`;
 const isAdmin = () => Boolean(state.overview?.isAdmin);
 const guildName = () => state.me.guilds.find((g) => g.id === state.guildId)?.name || 'ce serveur';
 
-const head = (icon, title, desc) => h('div', { class: 'page-head' },
-  h('div', null, h('h1', null, h('span', { class: 'ico' }, icon), title), h('p', null, desc)));
+const head = (iconName, title, desc) => h('div', { class: 'page-head' },
+  h('div', null, h('h1', null, h('span', { class: 'ico' }, icon(iconName, 20)), title), h('p', null, desc)));
 
 const adminBanner = () => (isAdmin() ? null
   : h('div', { class: 'banner warn' }, 'Certaines actions de cette page sont réservées aux administrateurs du serveur : elles sont désactivées pour toi.'));
@@ -51,12 +51,12 @@ const readFile = (file) => new Promise((resolve, reject) => {
 const MAX_IMAGE = 4 * 1024 * 1024;
 
 export async function profilePage(root) {
-  root.replaceChildren(head('🎭', 'Profil du bot', `Pseudo, avatar, bannière et bio du bot — uniquement sur ${guildName()}. Les autres serveurs ne changent pas.`), loading());
+  root.replaceChildren(head('idCard', 'Profil du bot', `Pseudo, avatar, bannière et bio du bot — uniquement sur ${guildName()}. Les autres serveurs ne changent pas.`), loading());
   let data;
   try {
     data = await api.get(gurl('/bot-profile'));
   } catch (err) {
-    root.replaceChildren(head('🎭', 'Profil du bot', 'Personnalise le bot sur ce serveur.'), errBanner(err.message, () => profilePage(root)));
+    root.replaceChildren(head('idCard', 'Profil du bot', 'Personnalise le bot sur ce serveur.'), errBanner(err.message, () => profilePage(root)));
     return;
   }
 
@@ -123,13 +123,13 @@ export async function profilePage(root) {
     if (change.banner !== undefined) body.banner = change.banner;
     if (!Object.keys(body).length) { toast('Rien n’a changé.', 'warn'); return; }
     await api.put(gurl('/bot-profile'), body);
-    toast('Profil du bot mis à jour ✓');
+    toast('Profil du bot mis à jour');
     if (body.nickname !== undefined) state.meta.bot.name = body.nickname || data.globalName;
     await profilePage(root);
   }));
 
   root.replaceChildren(
-    head('🎭', 'Profil du bot', `Pseudo, avatar, bannière et bio du bot — uniquement sur ${guildName()}. Les autres serveurs ne changent pas.`),
+    head('idCard', 'Profil du bot', `Pseudo, avatar, bannière et bio du bot — uniquement sur ${guildName()}. Les autres serveurs ne changent pas.`),
     h('div', { class: 'split' },
       h('div', { class: 'card' },
         h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Pseudo sur ce serveur'), h('p', { class: 'field-help' }, 'Laisse vide pour retrouver le nom habituel du bot.'), nick),
@@ -154,12 +154,12 @@ export async function webhooksPage(root, tab = 'saved') {
   const tabs = h('div', { class: 'tabs', role: 'tablist' });
   const show = (name) => {
     tabs.replaceChildren(
-      h('button', { class: `tab${name === 'saved' ? ' active' : ''}`, role: 'tab', onclick: () => show('saved') }, '💾 Messages enregistrés'),
-      h('button', { class: `tab${name === 'hooks' ? ' active' : ''}`, role: 'tab', onclick: () => show('hooks') }, '🪝 Webhooks'));
+      h('button', { class: `tab${name === 'saved' ? ' active' : ''}`, role: 'tab', onclick: () => show('saved') }, icon('save', 16), 'Messages enregistrés'),
+      h('button', { class: `tab${name === 'hooks' ? ' active' : ''}`, role: 'tab', onclick: () => show('hooks') }, icon('link', 16), 'Webhooks'));
     view.replaceChildren(loading());
     (name === 'saved' ? savedTab(view) : hooksTab(view)).catch((err) => view.replaceChildren(errBanner(err.message, () => show(name))));
   };
-  root.replaceChildren(head('🪝', 'Webhooks et messages', 'Garde autant de messages que tu veux, puis envoie-les avec le bot ou par webhook (nom et avatar personnalisables).'), tabs, view);
+  root.replaceChildren(head('link', 'Webhooks et messages', 'Garde autant de messages que tu veux, puis envoie-les avec le bot ou par webhook (nom et avatar personnalisables).'), tabs, view);
   show(tab);
 }
 
@@ -177,7 +177,7 @@ async function savedTab(view) {
       h('strong', null, m.name),
       h('div', { class: 'snippet' }, m.preview || (m.hasEmbed ? '(embed sans titre)' : '(vide)')),
       h('div', { class: 'meta' }, h('span', null, fmtDate(m.updatedAt)), m.hasEmbed ? h('span', { class: 'pill info' }, 'embed') : null))));
-    if (!r.rows.length) grid.replaceChildren(h('div', { class: 'card', style: { gridColumn: '1 / -1' } }, emptyState('💾', search ? 'Aucun message ne correspond à ta recherche.' : 'Aucun message enregistré. Crée le premier : il n’y a aucune limite.')));
+    if (!r.rows.length) grid.replaceChildren(h('div', { class: 'card', style: { gridColumn: '1 / -1' } }, emptyState('save', search ? 'Aucun message ne correspond à ta recherche.' : 'Aucun message enregistré. Crée le premier : il n’y a aucune limite.')));
     pg.replaceChildren(pager(r, (p) => { page = p; load().catch((e) => toast(e.message, 'bad')); }) || '');
   }
 
@@ -228,12 +228,12 @@ async function savedTab(view) {
           if (dirty && !(await confirmDialog({ title: 'Quitter sans enregistrer ?', text: 'Les modifications de ce message seront perdues.', confirmLabel: 'Quitter', danger: true }))) return;
           view.replaceChildren(loading());
           list().catch((e) => view.replaceChildren(errBanner(e.message)));
-        } }, '← Tous les messages'),
+        } }, icon('arrowLeft', 15), 'Tous les messages'),
         h('span', { class: 'spacer' }),
         current ? h('button', { class: 'btn', onclick: busy(async () => {
           if (dirty && !(await persist())) return;
           const copy = await api.post(gurl(`/saved/${current}/duplicate`));
-          toast(`Dupliqué : « ${copy.name} » ✓`);
+          toast(`Dupliqué : « ${copy.name} »`);
           await editor(copy.id);
         }) }, 'Dupliquer') : null,
         current ? h('button', { class: 'btn btn-danger', onclick: busy(async () => {
@@ -246,7 +246,7 @@ async function savedTab(view) {
         }) }, 'Supprimer') : null,
         h('button', { class: 'btn btn-primary', onclick: busy(async () => {
           const wasNew = !current;
-          if (await persist()) { toast('Message enregistré ✓'); if (wasNew) await editor(current); }
+          if (await persist()) { toast('Message enregistré'); if (wasNew) await editor(current); }
         }) }, 'Enregistrer')),
       h('div', { class: 'card' },
         h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Nom (visible seulement ici)'), name),
@@ -263,13 +263,13 @@ async function savedTab(view) {
               if (!chan.value) { toast('Choisis un salon.', 'warn'); return; }
               if (!(await persist())) return;
               const r = await api.post(gurl(`/saved/${current}/send`), { channelId: chan.value });
-              toast(h('span', null, 'Message envoyé. ', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, 'Voir ↗')));
+              toast(h('span', null, 'Message envoyé. ', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, 'Voir')));
             }) }, 'Envoyer'))),
           h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Par webhook'),
             h('div', { class: 'field-row' }, hook, h('button', { class: 'btn btn-primary', disabled: !hooks.length, onclick: busy(async () => {
               if (!hook.value) { toast('Choisis un webhook.', 'warn'); return; }
               const r = await api.post(gurl(`/webhooks/${hook.value}/send`), { message: draft.message, username: draft.username, avatarUrl: draft.avatarUrl });
-              toast(r.url ? h('span', null, 'Message envoyé. ', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, 'Voir ↗')) : 'Message envoyé ✓');
+              toast(r.url ? h('span', null, 'Message envoyé. ', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, 'Voir')) : 'Message envoyé');
             }) }, 'Envoyer')))),
         h('p', { class: 'hint' }, 'Les mentions ne notifient personne dans les messages envoyés d’ici. Variables disponibles : {server}, {server.icon} et {memberCount}.')));
   }
@@ -282,7 +282,7 @@ async function hooksTab(view) {
   async function load() {
     const { rows } = await api.get(gurl('/webhooks'));
     listBox.replaceChildren(...(rows.length ? rows.map((w) => h('div', { class: 'wh-row' },
-      h('span', { style: { fontSize: '20px' } }, '🪝'),
+      icon('link', 20),
       h('div', { class: 'grow' }, h('strong', null, w.name), h('span', { class: 'muted' }, `${w.channelName ? `# ${w.channelName}` : 'salon supprimé'} · ajouté le ${fmtDate(w.createdAt)}`)),
       h('button', { class: 'btn btn-sm btn-danger', onclick: busy(async () => {
         if (!(await confirmDialog({ title: 'Supprimer ce webhook ?', text: `« ${w.name} » sera supprimé sur Discord.`, confirmLabel: 'Supprimer', danger: true }))) return;
@@ -306,7 +306,7 @@ async function hooksTab(view) {
             if (!chan.value) { toast('Choisis un salon.', 'warn'); return; }
             await api.post(gurl('/webhooks'), { channelId: chan.value, name: name.value.trim() || undefined });
             name.value = '';
-            toast('Webhook créé ✓');
+            toast('Webhook créé');
             await load();
           }) }, 'Créer'))),
       h('div', { class: 'card' }, h('h3', null, 'Importer un webhook existant'),
@@ -316,7 +316,7 @@ async function hooksTab(view) {
             if (!url.value.trim()) { toast('Colle une URL de webhook.', 'warn'); return; }
             await api.post(gurl('/webhooks/import'), { url: url.value.trim() });
             url.value = '';
-            toast('Webhook importé ✓');
+            toast('Webhook importé');
             await load();
           }) }, 'Importer')))));
   await load();
@@ -325,13 +325,14 @@ async function hooksTab(view) {
 /* ======================================================================== */
 /* Créateur de serveur                                                       */
 /* ======================================================================== */
-const CH_ICON = { text: '#', voice: '🔊', announcement: '📢', forum: '💬', stage: '🎙️' };
+const CH_ICON = { text: 'hash', voice: 'volume', announcement: 'megaphone', forum: 'message', stage: 'mic' };
+const TPL_ICONS = { communaute: 'users', gaming: 'gamepad', etude: 'book', creatif: 'sparkles', boutique: 'coins', minimal: 'layout' };
 const ACCESS_LABEL = { public: 'public', readonly: 'lecture seule', members: 'membres', staff: 'staff' };
 const PRESET_LABEL = { none: '', helper: 'helper', moderator: 'modérateur', manager: 'gestionnaire' };
 const PURPOSE_LABEL = { welcome: 'accueil', rules: 'règlement', logs: 'journaux', tickets: 'tickets', suggestions: 'suggestions', verification: 'vérification', announcements: 'annonces', general: 'général' };
 
 export async function builderPage(root) {
-  const header = head('🧱', 'Créateur de serveur', 'Crée rôles, catégories et salons d’un coup — depuis un modèle ou une description. Rien n’est supprimé ni modifié : seul ce qui manque est ajouté.');
+  const header = head('package', 'Créateur de serveur', 'Crée rôles, catégories et salons d’un coup — depuis un modèle ou une description. Rien n’est supprimé ni modifié : seul ce qui manque est ajouté.');
   const stage = h('div', { class: 'stack' });
   root.replaceChildren(...[header, adminBanner(), stage].filter(Boolean));
 
@@ -349,8 +350,8 @@ export async function builderPage(root) {
   const sourceTabs = h('div', { class: 'tabs', role: 'tablist' });
   const showSource = (name) => {
     sourceTabs.replaceChildren(
-      h('button', { class: `tab${name === 'tpl' ? ' active' : ''}`, onclick: () => showSource('tpl') }, '📦 Modèles prêts à l’emploi'),
-      h('button', { class: `tab${name === 'ai' ? ' active' : ''}`, onclick: () => showSource('ai') }, '✨ Décrire avec l’IA'));
+      h('button', { class: `tab${name === 'tpl' ? ' active' : ''}`, onclick: () => showSource('tpl') }, icon('package', 16), 'Modèles prêts à l’emploi'),
+      h('button', { class: `tab${name === 'ai' ? ' active' : ''}`, onclick: () => showSource('ai') }, icon('sparkles', 16), 'Décrire avec l’IA'));
     sourceBody.replaceChildren(name === 'tpl' ? templatesBox : aiBox);
   };
 
@@ -365,8 +366,8 @@ export async function builderPage(root) {
   }
   let tplList = [];
   function renderTemplates() {
-    templatesBox.replaceChildren(...tplList.map((t) => h('button', { class: `tpl spot${activeTpl === t.id ? ' active' : ''}`, onclick: () => pickTemplate(t.id) },
-      h('span', { class: 'ico' }, t.icon), h('strong', null, t.name), h('p', null, t.description),
+    templatesBox.replaceChildren(...tplList.map((t) => h('button', { class: `tpl${activeTpl === t.id ? ' active' : ''}`, onclick: () => pickTemplate(t.id) },
+      h('span', { class: 'ico' }, icon(TPL_ICONS[t.id] || 'package', 24)), h('strong', null, t.name), h('p', null, t.description),
       h('div', { class: 'counts' }, h('span', { class: 'pill' }, `${t.summary.roles} rôles`), h('span', { class: 'pill' }, `${t.summary.categories} catégories`), h('span', { class: 'pill' }, `${t.summary.channels} salons`)))));
   }
 
@@ -388,7 +389,7 @@ export async function builderPage(root) {
               renderTemplates();
               setPlan(r.plan, r.warnings);
             } catch (err) { planBox.replaceChildren(); throw err; }
-          }) }, '✨ Générer le plan'),
+          }) }, icon('sparkles', 16), 'Générer le plan'),
           h('span', { class: 'muted' }, 'Tu pourras tout relire et retirer ce que tu ne veux pas avant la création.'))),
     ].filter(Boolean));
   }
@@ -412,22 +413,22 @@ export async function builderPage(root) {
         h('div', { style: { marginTop: '6px' } }, plan.roles.map((r, i) => h('span', { class: 'role-chip' },
           h('span', { class: 'dot', style: { background: r.color || '#99aab5' } }), r.name,
           r.preset !== 'none' ? h('span', { class: 'pill info' }, PRESET_LABEL[r.preset] || r.preset) : null,
-          h('button', { class: 'icon-btn danger', style: { width: '20px', height: '20px', fontSize: '12px' }, title: 'Retirer ce rôle', 'aria-label': `Retirer ${r.name}`, onclick: () => { plan.roles.splice(i, 1); renderPlan(); } }, '✕'))))) : null,
+          h('button', { class: 'icon-btn danger', style: { width: '20px', height: '20px' }, title: 'Retirer ce rôle', 'aria-label': `Retirer ${r.name}`, onclick: () => { plan.roles.splice(i, 1); renderPlan(); } }, icon('x', 13)))))) : null,
       ...plan.categories.map((c, ci) => h('div', { class: 'plan-cat' },
-        h('div', { class: 'plan-cat-name' }, `📁 ${c.name}`, h('span', { class: 'pill' }, ACCESS_LABEL[c.access] || c.access),
-          h('button', { class: 'icon-btn danger', style: { width: '20px', height: '20px', fontSize: '12px' }, title: 'Retirer la catégorie', 'aria-label': `Retirer ${c.name}`, onclick: () => { plan.categories.splice(ci, 1); renderPlan(); } }, '✕')),
+        h('div', { class: 'plan-cat-name' }, icon('folder', 15), c.name, h('span', { class: 'pill' }, ACCESS_LABEL[c.access] || c.access),
+          h('button', { class: 'icon-btn danger', style: { width: '20px', height: '20px' }, title: 'Retirer la catégorie', 'aria-label': `Retirer ${c.name}`, onclick: () => { plan.categories.splice(ci, 1); renderPlan(); } }, icon('x', 13))),
         ...c.channels.map((ch, chi) => h('div', { class: 'plan-ch' },
-          h('span', { class: 'kind' }, CH_ICON[ch.type] || '#'), h('span', null, ch.name),
+          h('span', { class: 'kind' }, icon(CH_ICON[ch.type] || 'hash', 15)), h('span', null, ch.name),
           ch.access !== c.access ? h('span', { class: 'pill' }, ACCESS_LABEL[ch.access] || ch.access) : null,
           ch.purpose ? h('span', { class: 'pill info', title: 'Sera relié au module correspondant si tu coches l’option ci-dessous' }, PURPOSE_LABEL[ch.purpose] || ch.purpose) : null,
           ch.topic ? h('span', { class: 'topic' }, ch.topic) : null,
           h('span', { class: 'spacer' }),
-          h('button', { class: 'icon-btn danger', style: { width: '22px', height: '22px', fontSize: '12px' }, title: 'Retirer le salon', 'aria-label': `Retirer ${ch.name}`, onclick: () => { c.channels.splice(chi, 1); renderPlan(); } }, '✕'))))));
+          h('button', { class: 'icon-btn danger', style: { width: '22px', height: '22px' }, title: 'Retirer le salon', 'aria-label': `Retirer ${ch.name}`, onclick: () => { c.channels.splice(chi, 1); renderPlan(); } }, icon('x', 13)))))));
 
     const wireBox = h('input', { type: 'checkbox', checked: wire, 'aria-label': 'Relier les salons au bot', onchange: (e) => { wire = e.target.checked; } });
     planBox.replaceChildren(h('div', { class: 'card' },
       h('h3', null, plan.name ? `Plan : ${plan.name}` : 'Plan du serveur'),
-      h('p', { class: 'muted' }, `${plan.roles.length} rôle${plan.roles.length > 1 ? 's' : ''}, ${plan.categories.length} catégorie${plan.categories.length > 1 ? 's' : ''}, ${channels} salon${channels > 1 ? 's' : ''}. Retire ce que tu ne veux pas avec ✕.`),
+      h('p', { class: 'muted' }, `${plan.roles.length} rôle${plan.roles.length > 1 ? 's' : ''}, ${plan.categories.length} catégorie${plan.categories.length > 1 ? 's' : ''}, ${channels} salon${channels > 1 ? 's' : ''}. Retire ce que tu ne veux pas avec la croix.`),
       warnings.length ? h('div', { class: 'banner info' }, h('div', null, h('strong', null, 'Ajustements automatiques :'), h('ul', { style: { margin: '6px 0 0', paddingLeft: '18px' } }, warnings.slice(0, 12).map((w) => h('li', null, w))))) : null,
       tree,
       h('details', { style: { marginTop: '14px' } }, h('summary', { class: 'muted', style: { cursor: 'pointer' } }, 'Avancé : modifier le plan en JSON'),
@@ -449,10 +450,10 @@ export async function builderPage(root) {
             confirmLabel: 'Lancer la création',
           }))) return;
           const r = await api.post(gurl('/builder/apply'), { plan, wire });
-          toast('Création lancée ✓');
+          toast('Création lancée');
           showJob(r.job);
           poll();
-        }) }, '🚀 Créer sur le serveur'),
+        }) }, icon('rocket', 17), 'Créer sur le serveur'),
         isAdmin() ? null : h('span', { class: 'muted' }, 'Réservé aux administrateurs.'))));
   }
 
@@ -462,7 +463,7 @@ export async function builderPage(root) {
     const pct = job.total ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0;
     const done = job.status !== 'running';
     const bar = h('div', { class: `progress${done ? ' done' : ''}` }, h('i', { style: { width: `${job.status === 'done' ? 100 : pct}%` } }));
-    const log = h('div', { class: 'joblog' }, job.log.map((l) => h('div', { class: l.startsWith('❌') ? 'err' : l.startsWith('✅') ? 'ok' : '' }, l)));
+    const log = h('div', { class: 'joblog' }, job.log.map((l) => h('div', { class: l.startsWith('❌') ? 'err' : l.startsWith('✅') ? 'ok' : '' }, l.replace(/^(❌|✅)\s*/u, ''))));
     jobBox.replaceChildren(h('div', { class: 'card' },
       h('div', { class: 'field-row', style: { justifyContent: 'space-between', marginBottom: '10px' } },
         h('h3', { style: { margin: 0 } }, { running: 'Création en cours', done: 'Création terminée', failed: 'Création interrompue' }[job.status] || 'Création'),
@@ -488,7 +489,7 @@ export async function builderPage(root) {
         if (!root.isConnected) return;
         showJob(job);
         if (!job || job.status !== 'running') {
-          if (job?.status === 'done') { toast('Serveur créé ✓'); await refreshAfterJob(); }
+          if (job?.status === 'done') { toast('Serveur créé'); await refreshAfterJob(); }
           if (job?.status === 'failed') toast(job.error || 'La création a échoué.', 'bad', 9000);
           return;
         }
@@ -528,11 +529,11 @@ const ACTION_LABEL = {
 export async function auditPage(root) {
   let page = 1;
   const box = h('div');
-  root.replaceChildren(head('🕘', 'Historique', 'Qui a modifié quoi depuis le dashboard (les 2000 dernières actions sont conservées).'), box);
+  root.replaceChildren(head('history', 'Historique', 'Qui a modifié quoi depuis le dashboard (les 2000 dernières actions sont conservées).'), box);
   async function load() {
     box.replaceChildren(loading());
     const r = await api.get(gurl(`/audit?page=${page}`));
-    if (!r.rows.length) { box.replaceChildren(h('div', { class: 'card' }, emptyState('🕘', 'Aucune modification enregistrée pour l’instant.'))); return; }
+    if (!r.rows.length) { box.replaceChildren(h('div', { class: 'card' }, emptyState('history', 'Aucune modification enregistrée pour l’instant.'))); return; }
     box.replaceChildren(
       h('div', { class: 'table-wrap' }, h('table', null,
         h('thead', null, h('tr', null, ['Date', 'Qui', 'Type', 'Détail'].map((t) => h('th', null, t)))),

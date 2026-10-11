@@ -5,12 +5,12 @@
 import { api } from './api.js';
 import { state } from './state.js';
 import {
-  h, toast, confirmDialog, loading, emptyState, fmtDate,
+  h, toast, confirmDialog, loading, emptyState, fmtDate, icon,
 } from './ui.js';
 
 const DAY = 86400000;
-const head = (icon, title, desc) => h('div', { class: 'page-head' },
-  h('div', null, h('h1', null, h('span', { class: 'ico' }, icon), title), h('p', null, desc)));
+const head = (iconName, title, desc) => h('div', { class: 'page-head' },
+  h('div', null, h('h1', null, h('span', { class: 'ico' }, icon(iconName, 20)), title), h('p', null, desc)));
 
 const busy = (fn) => async (e) => {
   const btn = e.currentTarget;
@@ -41,7 +41,7 @@ const statusPill = (l) => {
 
 function copyButton(getText, label = 'Copier') {
   return h('button', { class: 'btn btn-sm', onclick: async (e) => {
-    try { await navigator.clipboard.writeText(getText()); toast('Copié ✓'); } catch { toast('Copie impossible : sélectionne le texte à la main.', 'warn'); }
+    try { await navigator.clipboard.writeText(getText()); toast('Copié'); } catch { toast('Copie impossible : sélectionne le texte à la main.', 'warn'); }
     e.currentTarget.blur();
   } }, label);
 }
@@ -61,35 +61,35 @@ function keyBox(key, hint) {
 /* Page « Abonnement »                                                       */
 /* ======================================================================== */
 export async function accountPage(root, { paid = false } = {}) {
-  root.replaceChildren(head('💳', 'Abonnement', 'Ton abonnement, tes clés de licence et tes serveurs.'), loading());
+  root.replaceChildren(head('creditCard', 'Abonnement', 'Ton abonnement, tes clés de licence et tes serveurs.'), loading());
   let d;
   try {
     d = await api.get('/api/account');
   } catch (err) {
-    root.replaceChildren(head('💳', 'Abonnement', ''), h('div', { class: 'banner bad' }, err.message));
+    root.replaceChildren(head('creditCard', 'Abonnement', ''), h('div', { class: 'banner bad' }, err.message));
     return;
   }
   const reload = () => accountPage(root);
 
   if (!d.enabled) {
-    root.replaceChildren(head('💳', 'Abonnement', 'Ton abonnement, tes clés de licence et tes serveurs.'),
-      h('div', { class: 'card' }, emptyState('🎁', 'Ce bot est entièrement gratuit : aucun abonnement n’est nécessaire.')));
+    root.replaceChildren(head('creditCard', 'Abonnement', 'Ton abonnement, tes clés de licence et tes serveurs.'),
+      h('div', { class: 'card' }, emptyState('gift', 'Ce bot est entièrement gratuit : aucun abonnement n’est nécessaire.')));
     return;
   }
 
   // Juste après un paiement, la clé arrive via Stripe en quelques secondes : on réessaie un peu.
   if (paid && !d.licenses.length && (accountPage.retries || 0) < 12) {
     accountPage.retries = (accountPage.retries || 0) + 1;
-    root.replaceChildren(head('💳', 'Abonnement', 'Ton abonnement, tes clés de licence et tes serveurs.'),
-      h('div', { class: 'banner good' }, '✅ Paiement reçu ! Ta clé est en cours de création, ça prend quelques secondes…'), loading());
+    root.replaceChildren(head('creditCard', 'Abonnement', 'Ton abonnement, tes clés de licence et tes serveurs.'),
+      h('div', { class: 'banner good' }, icon('checkCircle', 18), 'Paiement reçu ! Ta clé est en cours de création, ça prend quelques secondes…'), loading());
     setTimeout(() => { if (location.hash.startsWith('#/account')) accountPage(root, { paid: true }); }, 2500);
     return;
   }
   accountPage.retries = 0;
 
-  const pageHead = head('💳', 'Abonnement', `${d.priceLabel} · 1 clé = 1 serveur · ${d.trialDays} jours d’essai gratuit par serveur`);
+  const pageHead = head('creditCard', 'Abonnement', `${d.priceLabel} · 1 clé = 1 serveur · ${d.trialDays} jours d’essai gratuit par serveur`);
   const blocks = [pageHead];
-  if (paid && d.licenses.length) blocks.push(h('div', { class: 'banner good' }, '✅ Merci ! Ton abonnement est actif. Active ta clé sur un serveur ci-dessous.'));
+  if (paid && d.licenses.length) blocks.push(h('div', { class: 'banner good' }, icon('checkCircle', 18), 'Merci ! Ton abonnement est actif. Active ta clé sur un serveur ci-dessous.'));
 
   /* --- S'abonner --- */
   const checkout = h('button', { class: 'btn btn-primary btn-lg', disabled: !d.stripeReady, onclick: busy(async () => {
@@ -110,7 +110,7 @@ export async function accountPage(root, { paid = false } = {}) {
   const free = d.guilds.filter((g) => g.state !== 'licensed' && g.state !== 'free');
   blocks.push(h('h3', { class: 'section-title' }, 'Mes clés'));
   if (!d.licenses.length) {
-    blocks.push(h('div', { class: 'card' }, emptyState('🔑', 'Tu n’as pas encore de clé. Elle apparaît ici dès que ton paiement est confirmé (et tu la reçois aussi en message privé).')));
+    blocks.push(h('div', { class: 'card' }, emptyState('key', 'Tu n’as pas encore de clé. Elle apparaît ici dès que ton paiement est confirmé (et tu la reçois aussi en message privé).')));
   } else {
     for (const l of d.licenses) {
       const target = h('select', { class: 'input', style: { width: 'auto', maxWidth: '100%' }, 'aria-label': 'Serveur' },
@@ -127,19 +127,19 @@ export async function accountPage(root, { paid = false } = {}) {
             h('button', { class: 'btn btn-sm btn-danger', onclick: busy(async () => {
               if (!(await confirmDialog({ title: `Retirer la clé de « ${g.name} » ?`, text: 'Le bot se mettra en pause sur ce serveur (si son essai est terminé). Tu pourras réutiliser la clé ailleurs.', confirmLabel: 'Retirer', danger: true }))) return;
               await api.del(`/api/guilds/${g.guildId}/license`);
-              toast('Clé retirée ✓');
+              toast('Clé retirée');
               await reload();
             }) }, 'Retirer'))) : h('p', { class: 'muted' }, 'Cette clé n’est activée sur aucun serveur.')),
         l.active && !full ? h('div', { class: 'field-row' },
           free.length ? [target, h('button', { class: 'btn btn-primary', onclick: busy(async () => {
             await api.post(`/api/guilds/${target.value}/license`, { licenseId: l.id });
-            toast('Clé activée ✓ Le bot est actif sur ce serveur.');
+            toast('Clé activée. Le bot est actif sur ce serveur.');
             await reload();
           }) }, 'Activer sur ce serveur')] : h('span', { class: 'muted' }, 'Aucun autre serveur où le bot est présent et où tu es administrateur.')) : null,
         l.hasStripe ? h('div', { class: 'field-row' }, h('button', { class: 'btn', onclick: busy(async () => {
           const r = await api.post('/api/account/portal', { licenseId: l.id });
           location.href = r.url;
-        }) }, '🧾 Factures, carte bancaire, résiliation')) : null));
+        }) }, icon('creditCard', 16), 'Factures, carte bancaire, résiliation')) : null));
     }
   }
 
@@ -153,7 +153,7 @@ export async function accountPage(root, { paid = false } = {}) {
     h('div', { class: 'field-row' }, keyInput, guildSel, h('button', { class: 'btn btn-primary', disabled: !d.guilds.length, onclick: busy(async () => {
       if (!keyInput.value.trim()) { toast('Colle d’abord une clé.', 'warn'); return; }
       await api.post(`/api/guilds/${guildSel.value}/license`, { key: keyInput.value.trim() });
-      toast('Clé activée ✓');
+      toast('Clé activée');
       await reload();
     }) }, 'Activer'))));
 
@@ -165,7 +165,7 @@ export async function accountPage(root, { paid = false } = {}) {
       const s = guildStateLabel(g);
       return h('tr', null, h('td', null, h('a', { href: `#/g/${g.id}/overview` }, g.name)), h('td', null, h('span', { class: `pill ${s.kind}` }, s.text)));
     }))))
-    : h('div', { class: 'card' }, emptyState('🏠', 'Le bot n’est encore sur aucun des serveurs que tu gères.')));
+    : h('div', { class: 'card' }, emptyState('home', 'Le bot n’est encore sur aucun des serveurs que tu gères.')));
 
   root.replaceChildren(...blocks);
 }
@@ -215,7 +215,7 @@ export async function adminLicensesCard() {
             toast('Licence révoquée');
             await reload2();
           }) }, 'Révoquer') : null)))))
-        : emptyState('🔑', 'Aucune licence pour l’instant.')));
+        : emptyState('key', 'Aucune licence pour l’instant.')));
   };
   const reload2 = reload;
   await reload();
@@ -230,8 +230,8 @@ export function renderNotice(el) {
   el.className = `notice ${lic.allowed ? 'info' : 'bad'}`;
   const left = lic.trialEndsAt ? daysLeft(lic.trialEndsAt) : 0;
   el.replaceChildren(
-    h('span', null, lic.allowed
-      ? `🕒 Essai gratuit : encore ${left} jour${left > 1 ? 's' : ''} sur ce serveur.`
-      : '🔒 L’essai gratuit est terminé : le bot est en pause sur ce serveur et la configuration est en lecture seule.'),
+    h('span', null, icon(lic.allowed ? 'clock' : 'lock', 16), lic.allowed
+      ? `Essai gratuit : encore ${left} jour${left > 1 ? 's' : ''} sur ce serveur.`
+      : 'L’essai gratuit est terminé : le bot est en pause sur ce serveur et la configuration est en lecture seule.'),
     h('a', { class: 'btn btn-sm btn-primary', href: '#/account' }, lic.allowed ? 'S’abonner' : 'Activer une clé'));
 }

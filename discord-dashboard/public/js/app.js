@@ -2,10 +2,12 @@
 import { api } from './api.js';
 import { state, makeCtx } from './state.js';
 import { setSchema, renderFields } from './form.js';
-import { h, toast, confirmDialog, loading, deepClone, initials } from './ui.js';
+import { h, toast, confirmDialog, loading, deepClone, initials, icon } from './ui.js';
+import { MODULE_ICONS } from './icons.js';
 import {
-  guildsPage, overviewPage, leaderboardPage, casesPage, ticketsPage, messagePage, backupPage, adminPage,
+  guildsPage, overviewPage, leaderboardPage, casesPage, appealsPage, statsPage, ticketsPage, messagePage, backupPage, adminPage,
 } from './pages.js';
+import { docsPage } from './pages-docs.js';
 import { profilePage, webhooksPage, builderPage, auditPage } from './pages-bot.js';
 import { EXTRAS } from './extras.js';
 import { accountPage, renderNotice } from './pages-account.js';
@@ -13,10 +15,12 @@ import { accountPage, renderNotice } from './pages-account.js';
 const $ = (id) => document.getElementById(id);
 const topbar = $('topbar');
 const side = $('side');
+const rail = $('rail');
 const shell = $('shell');
 const main = $('main');
 const notice = $('notice');
 let licenseOn = false;
+let publicInfo = { supportUrl: null, inviteUrl: null };
 
 const gurl = (path = '') => `/api/guilds/${state.guildId}${path}`;
 
@@ -25,21 +29,51 @@ const gurl = (path = '') => `/api/guilds/${state.guildId}${path}`;
 /* ---------------------------------------------------------------- */
 let botName = 'MonBot';
 
-function renderTopbar() {
+/** Affiche ou masque la colonne des serveurs et le menu du serveur. */
+function layout({ withRail, withSide }) {
+  shell.classList.toggle('no-rail', !withRail);
+  shell.classList.toggle('no-side', !withSide);
+  rail.hidden = !withRail;
+  side.hidden = !withSide;
+}
+
+function closeMenus() { document.querySelectorAll('.menu').forEach((m) => m.remove()); }
+document.addEventListener('click', (e) => { if (!e.target.closest?.('.menu-wrap')) closeMenus(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenus(); });
+
+function userMenu() {
   const u = state.me.user;
-  const guild = state.me.guilds.find((g) => g.id === state.guildId);
+  const item = (iconName, label, attrs) => h(attrs.href ? 'a' : 'button', { class: `menu-item${attrs.danger ? ' danger' : ''}`, ...attrs }, icon(iconName, 17), label);
+  const wrap = h('div', { class: 'menu-wrap' });
+  const btn = h('button', { class: 'user-btn', 'aria-haspopup': 'true', onclick: (e) => {
+    e.stopPropagation();
+    const open = wrap.querySelector('.menu');
+    closeMenus();
+    if (open) return;
+    wrap.append(h('div', { class: 'menu', role: 'menu' },
+      h('div', { class: 'menu-head' }, h('strong', null, u.name), h('span', null, u.username ? `@${u.username}` : 'Connecté avec Discord')),
+      item('grid', 'Mes serveurs', { href: '#/', onclick: closeMenus }),
+      licenseOn ? item('creditCard', 'Abonnement', { href: '#/account', onclick: closeMenus }) : null,
+      state.me.isOwner ? item('wrench', 'Administration du bot', { href: '#/admin', onclick: closeMenus }) : null,
+      item('book', 'Documentation', { href: '#/docs', onclick: closeMenus }),
+      item('logout', 'Se déconnecter', { danger: true, onclick: logout }),
+    ));
+  } }, h('img', { src: u.avatar, alt: '' }), h('span', { class: 'hide-sm' }, u.name), icon('chevronDown', 15));
+  wrap.append(btn);
+  return wrap;
+}
+
+function renderTopbar() {
+  const hash = location.hash || '#/';
+  const link = (href, iconName, label, match) => h('a', { class: `top-link${match ? ' active' : ''}`, href }, icon(iconName, 17), h('span', { class: 'hide-sm' }, label));
   // `replaceChildren(null)` écrirait le texte « null » dans la page : on filtre les entrées vides.
   topbar.replaceChildren(...[
     h('a', { class: 'brand', href: '#/' }, h('span', { class: 'brand-mark' }, botName.charAt(0).toUpperCase()), h('span', null, botName)),
-    guild ? h('div', { class: 'crumb' }, '›',
-      guild.icon ? h('img', { src: guild.icon, alt: '' }) : null,
-      h('strong', null, guild.name),
-      h('a', { href: '#/', class: 'btn btn-ghost btn-sm' }, 'Changer')) : null,
+    link('#/docs', 'book', 'Documentation', hash.startsWith('#/docs')),
+    licenseOn ? link('#/account', 'creditCard', 'Abonnement', hash.startsWith('#/account')) : null,
     h('span', { class: 'spacer' }),
-    licenseOn ? h('a', { class: 'btn btn-sm', href: '#/account', title: 'Abonnement' }, '💳', h('span', { class: 'hide-sm' }, ' Abonnement')) : null,
-    state.me.isOwner ? h('a', { class: 'btn btn-sm', href: '#/admin', title: 'Administration du bot' }, '🛠️', h('span', { class: 'hide-sm' }, ' Admin')) : null,
-    h('div', { class: 'user-chip' }, h('span', null, u.name), h('img', { src: u.avatar, alt: '' }),
-      h('button', { class: 'btn btn-ghost btn-sm', title: 'Se déconnecter', onclick: logout }, 'Déconnexion')),
+    publicInfo.supportUrl ? h('a', { class: 'btn btn-outline btn-sm', href: publicInfo.supportUrl, target: '_blank', rel: 'noopener' }, icon('lifebuoy', 16), h('span', { class: 'hide-sm' }, 'Support')) : null,
+    userMenu(),
   ].filter(Boolean));
 }
 
@@ -49,50 +83,74 @@ async function logout() {
 }
 
 /* ---------------------------------------------------------------- */
-/* Barre latérale                                                    */
+/* Colonne des serveurs                                              */
+/* ---------------------------------------------------------------- */
+function renderRail() {
+  const guilds = state.me.guilds.filter((g) => g.botPresent);
+  const item = (g) => h('a', {
+    class: `rail-item${g.id === state.guildId ? ' active' : ''}`, href: `#/g/${g.id}/overview`, title: g.name, 'aria-label': g.name,
+  }, g.icon ? h('img', { src: g.icon, alt: '' }) : initials(g.name));
+  rail.replaceChildren(
+    h('a', { class: `rail-item${!state.guildId && ['', '#', '#/'].includes(location.hash) ? ' active' : ''}`, href: '#/', title: 'Mes serveurs', 'aria-label': 'Mes serveurs' }, icon('grid', 20)),
+    h('span', { class: 'rail-sep' }),
+    ...guilds.map(item),
+    h('a', {
+      class: 'rail-item add', title: 'Ajouter le bot à un serveur', 'aria-label': 'Ajouter le bot à un serveur',
+      href: publicInfo.inviteUrl || '#/', target: publicInfo.inviteUrl ? '_blank' : undefined, rel: 'noopener',
+    }, icon('plus', 20)),
+  );
+}
+
+/* ---------------------------------------------------------------- */
+/* Menu du serveur                                                   */
 /* ---------------------------------------------------------------- */
 const BOT_TOOLS = [
-  ['profile', '🎭', 'Profil du bot'],
-  ['webhooks', '🪝', 'Webhooks et messages'],
-  ['builder', '🧱', 'Créateur de serveur'],
+  ['profile', 'idCard', 'Profil du bot'],
+  ['webhooks', 'link', 'Webhooks et messages'],
+  ['builder', 'package', 'Créateur de serveur'],
 ];
 const TOOLS = [
-  ['leaderboard', '🏆', 'Classement'],
-  ['cases', '⚖️', 'Sanctions'],
-  ['tickets-list', '🎟️', 'Liste des tickets'],
-  ['send', '✉️', 'Envoyer un message'],
-  ['audit', '🕘', 'Historique'],
-  ['backup', '💾', 'Sauvegarde'],
+  ['stats', 'chart', 'Statistiques'],
+  ['leaderboard', 'trophy', 'Classement'],
+  ['cases', 'gavel', 'Sanctions'],
+  ['appeals-list', 'scale', 'Contestations'],
+  ['tickets-list', 'inbox', 'Liste des tickets'],
+  ['send', 'send', 'Envoyer un message'],
+  ['audit', 'history', 'Historique'],
+  ['backup', 'save', 'Sauvegarde'],
 ];
 
 const isAdmin = () => Boolean(state.overview?.isAdmin);
 
 function renderSide(active) {
   const id = state.guildId;
-  const link = (page, icon, label, dot, locked) => h('a', { class: `nav-link${active === page ? ' active' : ''}`, href: `#/g/${id}/${page}` },
-    h('span', { class: 'ico' }, icon), label,
-    locked ? h('span', { class: 'lock', title: 'Réservé aux administrateurs' }, '🔒') : null,
+  const guild = state.me.guilds.find((g) => g.id === id);
+  const link = (page, iconName, label, dot, locked) => h('a', { class: `nav-link${active === page ? ' active' : ''}`, href: `#/g/${id}/${page}` },
+    h('span', { class: 'ico' }, icon(iconName, 18)), label,
+    locked ? h('span', { class: 'lock', title: 'Réservé aux administrateurs' }, icon('lock', 14)) : null,
     !locked && dot !== undefined ? h('span', { class: `state${dot ? ' on' : ''}`, title: dot ? 'Activé' : 'Désactivé' }) : null);
+  const modLink = (m) => link(m.id, MODULE_ICONS[m.id] || 'circle', m.name, m.toggle ? Boolean(state.settings[m.id][m.toggle]) : undefined, m.adminOnly && !isAdmin());
 
   const groups = (state.schema.categories || []).map((cat) => {
     const mods = state.schema.modules.filter((m) => m.category === cat.id);
     if (!mods.length) return [];
-    return [h('h4', null, cat.name),
-      ...mods.map((m) => link(m.id, m.icon, m.name, m.toggle ? Boolean(state.settings[m.id][m.toggle]) : undefined, m.adminOnly && !isAdmin()))];
+    return [h('h4', null, cat.name), ...mods.map(modLink)];
   });
   // Modules sans catégorie connue : ne jamais les perdre.
   const known = new Set((state.schema.categories || []).map((c) => c.id));
   const orphans = state.schema.modules.filter((m) => !known.has(m.category));
 
   side.replaceChildren(
-    h('h4', null, 'Serveur'),
-    link('overview', '📊', 'Vue d’ensemble'),
+    h('div', { class: 'side-head' },
+      guild?.icon ? h('img', { src: guild.icon, alt: '' }) : h('span', { class: 'guild-ico' }, initials(guild?.name || '?')),
+      h('div', null, h('strong', { title: guild?.name }, guild?.name || 'Serveur'), h('span', null, 'Configuration du bot'))),
+    link('overview', 'layout', 'Vue d’ensemble'),
     ...groups.flat(),
-    ...(orphans.length ? [h('h4', null, 'Autres'), ...orphans.map((m) => link(m.id, m.icon, m.name, m.toggle ? Boolean(state.settings[m.id][m.toggle]) : undefined))] : []),
+    ...(orphans.length ? [h('h4', null, 'Autres'), ...orphans.map(modLink)] : []),
     h('h4', null, 'Le bot'),
-    ...BOT_TOOLS.map(([page, icon, label]) => link(page, icon, label)),
+    ...BOT_TOOLS.map(([page, iconName, label]) => link(page, iconName, label)),
     h('h4', null, 'Outils'),
-    ...TOOLS.map(([page, icon, label]) => link(page, icon, label)),
+    ...TOOLS.map(([page, iconName, label]) => link(page, iconName, label)),
   );
 }
 
@@ -128,7 +186,7 @@ function modulePage(root, mod) {
       const same = JSON.stringify(saved) === JSON.stringify(draft);
       setDirty(false);
       if (!same) render(); // valeurs corrigées par le serveur (listes nettoyées, identifiants…)
-      if (!silent) toast('Modifications enregistrées ✓');
+      if (!silent) toast('Modifications enregistrées');
       (res.warnings || []).forEach((w) => toast(w, 'warn', 8000));
       renderSide(mod.id);
       return true;
@@ -149,7 +207,7 @@ function modulePage(root, mod) {
           const r = await api.post(gurl(`/actions/role-panel/${item.id}`));
           state.settings.rolepanels = r.settings;
           saved = r.settings;
-          toast(h('span', null, 'Panneau publié. ', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, 'Voir sur Discord ↗')));
+          toast(h('span', null, 'Panneau publié. ', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, 'Voir sur Discord')));
           render();
         } catch (e) { toast(e.message, 'bad', 6000); }
       },
@@ -161,7 +219,7 @@ function modulePage(root, mod) {
     setDirty(false);
 
     const head = h('div', { class: 'page-head' },
-      h('div', null, h('h1', null, h('span', { class: 'ico' }, mod.icon), mod.name), h('p', null, mod.description)));
+      h('div', null, h('h1', null, h('span', { class: 'ico' }, icon(MODULE_ICONS[mod.id] || 'circle', 20)), mod.name), h('p', null, mod.description)));
 
     if (mod.toggle) {
       head.append(h('label', { class: 'field-row', style: { cursor: 'pointer' } },
@@ -208,12 +266,12 @@ async function loadGuild(id, { fresh = false } = {}) {
 }
 
 function showError(message, guild) {
-  side.hidden = true;
-  shell.classList.add('no-side');
+  layout({ withRail: true, withSide: false });
+  renderRail();
   main.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' },
-    h('div', { class: 'big' }, '😕'), h('p', null, message),
+    h('div', { class: 'big' }, icon('alertCircle', 26)), h('p', null, message),
     guild && !guild.botPresent ? h('a', { class: 'btn btn-primary', href: guild.inviteUrl, target: '_blank', rel: 'noopener' }, 'Inviter le bot sur ce serveur') : null,
-    ' ', h('a', { class: 'btn', href: '#/' }, '← Retour aux serveurs'))));
+    ' ', h('a', { class: 'btn', href: '#/' }, icon('arrowLeft', 15), 'Retour aux serveurs'))));
 }
 
 /* ---------------------------------------------------------------- */
@@ -244,8 +302,8 @@ async function route() {
       }
       renderTopbar();
       renderNotice(notice);
-      shell.classList.remove('no-side');
-      side.hidden = false;
+      layout({ withRail: true, withSide: true });
+      renderRail();
       renderSide(page);
 
       const mod = state.schema.modules.find((m) => m.id === page);
@@ -254,6 +312,8 @@ async function route() {
         case 'overview': return overviewPage(main);
         case 'leaderboard': return await leaderboardPage(main);
         case 'cases': return await casesPage(main);
+        case 'appeals-list': return await appealsPage(main);
+        case 'stats': return await statsPage(main);
         case 'tickets-list': return await ticketsPage(main);
         case 'send': return messagePage(main);
         case 'backup': return backupPage(main);
@@ -268,8 +328,9 @@ async function route() {
     state.guildId = null;
     renderTopbar();
     renderNotice(notice);
-    shell.classList.add('no-side');
-    side.hidden = true;
+    layout({ withRail: true, withSide: false });
+    renderRail();
+    if (seg[0] === 'docs') return docsPage(main);
     if (seg[0] === 'admin') return await adminPage(main);
     if (seg[0]?.split('?')[0] === 'account') {
       state.overview = null; // le bandeau d'essai ne concerne que les pages d'un serveur
@@ -306,10 +367,9 @@ window.addEventListener('beforeunload', (e) => {
 /* ---------------------------------------------------------------- */
 function showLogin(name) {
   topbar.replaceChildren(h('a', { class: 'brand', href: '/' }, h('span', { class: 'brand-mark' }, name.charAt(0).toUpperCase()), h('span', null, name)));
-  side.hidden = true;
-  shell.classList.add('no-side');
+  layout({ withRail: false, withSide: false });
   main.replaceChildren(h('div', { class: 'card', style: { maxWidth: '460px', margin: '60px auto', textAlign: 'center' } },
-    h('div', { style: { fontSize: '40px' } }, '🔐'),
+    h('div', { class: 'empty', style: { padding: '0 0 8px' } }, h('div', { class: 'big' }, icon('lock', 26))),
     h('h2', null, 'Connecte-toi pour continuer'),
     h('p', { class: 'muted' }, 'Le dashboard utilise ton compte Discord pour savoir quels serveurs tu peux gérer. Nous ne conservons pas ton jeton Discord.'),
     h('a', { class: 'btn btn-primary btn-lg', href: '/auth/login' }, 'Se connecter avec Discord')));
@@ -320,6 +380,7 @@ function showLogin(name) {
   try {
     const pub = await api.get('/api/public');
     botName = pub.botName;
+    publicInfo = { supportUrl: pub.supportUrl || null, inviteUrl: pub.inviteUrl || null };
     licenseOn = Boolean(pub.license?.enabled);
     document.title = `Dashboard — ${botName}`;
   } catch { /* on garde le nom par défaut */ }
@@ -328,7 +389,7 @@ function showLogin(name) {
     state.me = await api.get('/api/me');
   } catch (err) {
     if (err.status === 401) return showLogin(botName);
-    main.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' }, h('div', { class: 'big' }, '⚠️'), err.message)));
+    main.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' }, h('div', { class: 'big' }, icon('alertTriangle', 26)), err.message)));
     return undefined;
   }
   state.schema = await api.get('/api/schema');

@@ -1,4 +1,8 @@
 import { api } from './api.js';
+import { icon } from './icons.js';
+
+// Icônes : <i data-icon="shield"></i> devient un SVG.
+for (const el of document.querySelectorAll('[data-icon]')) el.append(icon(el.dataset.icon, el.classList.contains('ico') ? 22 : 17));
 
 const ERRORS = {
   access_denied: 'Connexion annulée.',

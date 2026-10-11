@@ -79,7 +79,7 @@ module.exports = [
       if (problem) return interaction.reply({ content: `❌ ${problem}`, flags: EPHEMERAL });
       await interaction.deferReply({ flags: EPHEMERAL });
       try {
-        const { id } = await mod.sanction(interaction.client, { guild: interaction.guild, user, moderator: interaction.user, type: 'ban', reason: `[softban] ${interaction.options.getString('raison') || ''}`.trim(), deleteDays: 7 });
+        const { id } = await mod.sanction(interaction.client, { guild: interaction.guild, user, moderator: interaction.user, type: 'ban', reason: `[softban] ${interaction.options.getString('raison') || ''}`.trim(), deleteDays: 7, noAppeal: true });
         await interaction.guild.members.unban(user.id, 'Softban').catch(() => {});
         return interaction.editReply(`✅ Dossier #${id} : messages des 7 derniers jours supprimés, membre débanni.`);
       } catch (e) {

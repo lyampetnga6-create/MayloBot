@@ -290,7 +290,7 @@ function tiktokPanel(x, kind) {
     if (!configured) text = 'Renseigne ton compte et le salon, puis enregistre.';
     else if (!cfg.enabled) text = 'Module désactivé.';
     else if (!st.checkedAt) text = 'Pas encore vérifié : la première vérification arrive dans quelques minutes.';
-    else if (st.error) text = `Dernière vérification en erreur : ${st.error}`;
+    else if (st.error) text = `Dernière vérification en erreur : ${st.error}${/\b(403|429)\b/.test(st.error) ? ` Les sites bloquent souvent les serveurs d’hébergement : ${isLive ? 'annonce ton live avec /tiktok live' : 'annonce chaque vidéo avec /tiktok video lien:…'} (ça marche toujours).` : ''}`;
     else {
       dot = 'on';
       text = isLive
@@ -321,4 +321,58 @@ function tiktokPanel(x, kind) {
 const tiktokvideos = (x) => tiktokPanel(x, 'videos');
 const tiktoklive = (x) => tiktokPanel(x, 'live');
 
-export const EXTRAS = { tickets, ai, protection, honeypot, verification, feeds, streams, tiktokvideos, tiktoklive, invites, dms };
+/* ------------------------- Boutique Rocket League ------------------------- */
+function rlshop(x) {
+  const box = h('div');
+  const preview = h('div');
+  const note = 'Il n’existe pas d’accès officiel à la boutique Rocket League : le bot lit la page publique du site itemshop.gg, au plus une fois toutes les 10 minutes. Si le site change ou bloque le bot, une erreur claire s’affiche ici et rien n’est annoncé.';
+
+  function renderPreview(r) {
+    if (!r) { preview.replaceChildren(); return; }
+    const secs = r.preview;
+    preview.replaceChildren(
+      h('p', { class: 'muted' }, `${r.itemCount} objets · ${r.newCount} nouveauté${r.newCount > 1 ? 's' : ''} · ${r.leavingCount} en dernier jour${r.announced ? (r.changed ? ' · différente de la dernière annonce' : ' · identique à la dernière annonce') : ''}`),
+      ...secs.map((s) => h('div', { class: 'rlshop-sec' },
+        h('h4', null, `${s.title} `, h('span', { class: 'muted' }, String(s.count))),
+        h('div', { class: 'rlshop-grid' }, s.items.map((i) => h('figure', { class: 'rlshop-item', title: `${i.name}${i.kind ? ` · ${i.kind}` : ''}${i.price ? ` · ${i.price}` : ''}` },
+          h('img', { src: i.image, alt: i.name, loading: 'lazy', referrerpolicy: 'no-referrer' }),
+          h('figcaption', null, h('strong', null, i.name), h('span', null, i.price || '')))),
+        s.count > s.items.length ? h('span', { class: 'muted' }, `+ ${s.count - s.items.length} autres`) : null))));
+  }
+
+  async function load() {
+    let st;
+    try { st = await api.get(x.url('/rlshop/status')); } catch (err) { box.replaceChildren(h('div', { class: 'banner bad' }, err.message)); return; }
+    const cfg = x.saved();
+    const configured = Boolean(cfg.channelId);
+    let dot = 'warn'; let text;
+    if (!configured) text = 'Choisis le salon des annonces, puis enregistre.';
+    else if (st.error) text = `Dernière vérification en erreur : ${st.error}`;
+    else if (!cfg.enabled) text = 'Module désactivé : les boutons ci-dessous fonctionnent quand même.';
+    else if (!st.checkedAt) text = 'Pas encore vérifié : la première vérification arrive dans quelques minutes.';
+    else { dot = 'on'; text = st.initialized ? 'Surveillance active : la boutique sera annoncée dès qu’elle change.' : 'Première vérification en cours.'; }
+    box.replaceChildren(
+      h('div', { class: 'status-line' }, h('span', { class: `status-dot ${dot}` }), text),
+      st.checkedAt ? h('p', { class: 'muted' }, `Dernière vérification : ${fmtDate(st.checkedAt)}${st.announcedAt ? ` · dernière annonce : ${fmtDate(st.announcedAt)}` : ''}`) : null,
+      h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } },
+        h('button', { class: 'btn btn-sm', disabled: !x.isAdmin, onclick: busy(async () => {
+          const r = await api.post(x.url('/actions/rlshop-check'));
+          renderPreview(r);
+          toast(r.announced && r.changed ? 'La boutique a changé depuis la dernière annonce.' : 'Boutique lue.');
+          load();
+        }) }, icon('refresh', 14), 'Vérifier la boutique maintenant'),
+        h('button', { class: 'btn btn-sm btn-primary', disabled: !x.isAdmin || !configured, onclick: busy(async () => {
+          if (!(await x.saveFirst())) return;
+          const r = await api.post(x.url('/actions/rlshop-send'));
+          if (r.url) linkToast('Boutique envoyée.', r.url); else toast('Message envoyé.');
+          load();
+        }) }, icon('send', 14), 'Envoyer le message maintenant')));
+  }
+  load();
+  return panel('État et actions',
+    h('p', { class: 'muted' }, 'Le premier passage mémorise la boutique actuelle sans rien publier ; ensuite, une annonce part à chaque changement. « Envoyer le message maintenant » publie la boutique actuelle tout de suite, même si elle n’a pas changé.'),
+    h('p', { class: 'muted' }, note),
+    box, preview);
+}
+
+export const EXTRAS = { tickets, ai, protection, honeypot, verification, feeds, streams, tiktokvideos, tiktoklive, rlshop, invites, dms };

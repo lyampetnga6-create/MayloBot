@@ -25,7 +25,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
   /* ----------------------- Outils Rocket League ------------------------ */
   {
     id: 'rocketleague',
-    category: 'community',
+    category: 'rocketleague',
     name: 'Outils Rocket League',
     icon: 'rocket',
     description: 'Commandes pour une communauté Rocket League : /lfg (recherche de joueurs avec boutons « Je rejoins » et expiration automatique), /equipes (tirage de deux équipes dans ton vocal), /matchprive (nom et mot de passe), /defi et /modealeatoire.',
@@ -39,6 +39,31 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
       t.number('lfgCooldown', 'Délai entre deux recherches d’un même joueur (secondes)', 60, 0, 3600),
       t.roles('rankRoleIds', 'Rôles de rang (affichés sur l’annonce : le plus haut du joueur)'),
       t.roles('platformRoleIds', 'Rôles de plateforme (affichés sur l’annonce)'),
+    ],
+  },
+
+  /* -------------------- Boutique d'objets Rocket League -------------------- */
+  {
+    id: 'rlshop',
+    extras: 'rlshop',
+    category: 'rocketleague',
+    name: 'Boutique Rocket League',
+    icon: 'gift',
+    description: 'Annonce dans un salon la boutique d’objets Rocket League dès qu’elle change, avec la liste des nouveautés, des derniers jours, les prix et des images. Le bot lit la page publique d’un site de suivi (itemshop.gg) : il n’existe pas d’accès officiel.',
+    toggle: 'enabled',
+    fields: [
+      t.toggle('enabled', 'Activer le module', false),
+      t.channel('channelId', 'Salon des annonces', ['text']),
+      t.role('pingRoleId', 'Rôle à mentionner (facultatif)'),
+      t.number('intervalMinutes', 'Vérifier toutes les (minutes)', 30, 15, 1440, { description: 'La boutique change surtout une fois par jour. 30 minutes suffisent.' }),
+      t.heading('Images', 'Le message peut contenir la bannière de la boutique du jour et les images des objets nouveaux ou en dernier jour.'),
+      t.toggle('showBanner', 'Afficher la bannière de la boutique du jour', true),
+      t.number('itemImages', 'Images d’objets à montrer (0 = aucune, 8 maximum)', 8, 0, 8),
+      t.message('message', 'Message', msg('🛒 **La boutique Rocket League vient de changer !**', {
+        title: 'Boutique Rocket League · {date}',
+        description: '**Nouveautés ({newCount})**\n{new}\n\n**Derniers jours ({leavingCount})**\n{leaving}\n\nToute la boutique ({count} objets) : {link}',
+        footer: 'Source : itemshop.gg · prix en crédits',
+      }), { variables: ['server', 'date', 'count', 'newCount', 'new', 'leavingCount', 'leaving', 'link'] }),
     ],
   },
 

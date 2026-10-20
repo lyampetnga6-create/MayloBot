@@ -99,6 +99,7 @@ const JOBS = [
   { name: 'lives', everyMs: MIN, firstMs: 45 * 1000, run: (c) => streams.tick(c) },
   { name: 'tiktok vidéos', everyMs: 2 * MIN, firstMs: 75 * 1000, run: (c) => tiktok.tickVideos(c) },
   { name: 'recherche de joueurs', everyMs: 2 * MIN, firstMs: 90 * 1000, run: (c) => rocketleague.tickLfg(c) },
+  { name: 'boutique Rocket League', everyMs: 5 * MIN, firstMs: 2 * MIN, run: (c) => rocketleague.tickShop(c) },
   { name: 'tiktok lives', everyMs: MIN, firstMs: 50 * 1000, run: (c) => tiktok.tickLive(c) },
   { name: 'nettoyage messagerie', everyMs: 60 * MIN, firstMs: 5 * MIN, run: (c) => dms.tick(c) },
   { name: 'statistiques', everyMs: 30 * 1000, run: (c) => serverstats.tick(c) },

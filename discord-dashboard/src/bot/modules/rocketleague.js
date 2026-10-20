@@ -5,8 +5,8 @@
  * Les outils sans état (équipes, match, défi) sont dans lib/rocketleague.js.
  */
 const rl = require('../../lib/rocketleague');
-const { hexToInt } = require('../../lib/template');
-const { EPHEMERAL, getSendable } = require('../util');
+const { hexToInt, buildMessage } = require('../../lib/template');
+const { EPHEMERAL, getSendable, safeSend } = require('../util');
 
 const PREFIX = 'lfg:';
 const MAX_ACTIVE_PER_GUILD = 200;
@@ -146,6 +146,175 @@ async function createLfg(client, guild, member, { mode, note = '', places, platf
   return { url: sent.url, messageId: sent.id };
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Boutique d'objets Rocket League                                      */
+/* ------------------------------------------------------------------ */
+// Source : la page publique d'un site de suivi (rl.SHOP_URL). Aucun accès officiel n'existe ; la page est lue au plus
+// une fois toutes les 10 minutes pour tous les serveurs ensemble, par respect pour le site.
+const SHOP_TTL_MS = 10 * 60 * 1000;
+const SHOP_FORCE_MIN_MS = 60 * 1000;
+const SHOP_MAX_BYTES = 4_000_000;
+const SHOP_SEND_COOLDOWN_MS = 30 * 1000;
+const SHOP_UA = 'Mozilla/5.0 (compatible; MayloBot/1.0; bot Discord)';
+const MAX_SHOP_CHECKS_PER_TICK = 40;
+const shopKey = (guildId) => `rlshop:${guildId}`;
+
+let shopFetchImpl = (...args) => fetch(...args);
+/** Pour les tests : remplace `fetch` et vide le cache. */
+function setShopFetch(fn) { shopFetchImpl = fn || ((...args) => fetch(...args)); shopCache = { at: 0, shop: null }; shopSent.clear(); }
+let shopCache = { at: 0, shop: null };
+let shopInflight = null;
+const shopSent = new Map(); // guildId -> horodatage du dernier envoi manuel
+
+async function downloadShop() {
+  let res;
+  try {
+    res = await shopFetchImpl(rl.SHOP_URL, { redirect: 'follow', signal: AbortSignal.timeout(15000), headers: { 'user-agent': SHOP_UA, accept: 'text/html', 'accept-language': 'en' } });
+  } catch (err) {
+    throw new Error(err?.name === 'TimeoutError' ? 'Le site de la boutique n’a pas répondu à temps.' : 'Connexion impossible au site de la boutique.');
+  }
+  if (res.status === 403 || res.status === 429) throw new Error(`Le site de la boutique a bloqué la requête (${res.status}). Réessaie plus tard.`);
+  if (!res.ok) throw new Error(`Le site de la boutique a répondu ${res.status}.`);
+  return rl.parseShop((await res.text()).slice(0, SHOP_MAX_BYTES));
+}
+
+/** La boutique du moment (partagée entre serveurs, mise en cache 10 minutes ; `force` = au plus une fois par minute). */
+async function fetchShop({ force = false, now = Date.now() } = {}) {
+  const ttl = force ? SHOP_FORCE_MIN_MS : SHOP_TTL_MS;
+  if (shopCache.shop && now - shopCache.at < ttl) return shopCache.shop;
+  if (!shopInflight) {
+    shopInflight = downloadShop().then((shop) => { shopCache = { at: Date.now(), shop }; return shop; }).finally(() => { shopInflight = null; });
+  }
+  return shopInflight;
+}
+
+const readShopState = (client, guildId) => { try { return JSON.parse(db(client).prepare('SELECT value FROM kv WHERE key = ?').get(shopKey(guildId))?.value || 'null') || {}; } catch { return {}; } };
+const writeShopState = (client, guildId, patch) => {
+  const next = { ...readShopState(client, guildId), ...patch };
+  db(client).prepare('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(shopKey(guildId), JSON.stringify(next));
+  return next;
+};
+
+function shopSummary(shop, previousKeys = []) {
+  const news = rl.newItems(shop, previousKeys);
+  const leaving = rl.leavingItems(shop);
+  return { date: shop.date, itemCount: shop.itemCount, newCount: news.length, leavingCount: leaving.length, signature: rl.shopSignature(shop) };
+}
+
+/** Le message d'annonce : texte du module + bannière de la boutique + images des objets (par grilles de 4). */
+function shopPayload(client, guild, cfg, shop, previousKeys = []) {
+  const general = client.ctx.settings.module(guild.id, 'general');
+  const news = rl.newItems(shop, previousKeys);
+  const leaving = rl.leavingItems(shop);
+  const vars = {
+    server: guild.name, 'server.icon': guild.iconURL?.({ extension: 'png', size: 256 }) || '', memberCount: String(guild.memberCount || 0),
+    date: rl.frDate(shop.date) || new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    count: String(shop.itemCount), newCount: String(news.length), new: rl.itemLines(news, 1400),
+    leavingCount: String(leaving.length), leaving: rl.itemLines(leaving, 800), link: rl.SHOP_URL,
+  };
+  const payload = buildMessage(cfg.message, vars, general) || { content: `🛒 La boutique Rocket League a changé : ${rl.SHOP_URL}` };
+  const color = hexToInt(general.embedColor) || undefined;
+  const embeds = [...(payload.embeds || [])];
+  if (cfg.showBanner && shop.banner) embeds.push({ url: `${rl.SHOP_URL}#banner`, image: { url: shop.banner }, color });
+  const images = cfg.itemImages > 0 ? rl.pickImages(shop, previousKeys, Math.min(8, cfg.itemImages)) : [];
+  // Des embeds qui ont la même adresse s'affichent en une seule grille d'images (4 au maximum par grille).
+  images.forEach((it, i) => embeds.push({ url: `${rl.SHOP_URL}#g${Math.floor(i / 4)}`, image: { url: it.image }, color }));
+  const ping = cfg.pingRoleId ? `<@&${cfg.pingRoleId}>` : '';
+  return {
+    ...payload,
+    content: [ping, payload.content].filter(Boolean).join(' ') || undefined,
+    ...(embeds.length ? { embeds } : {}),
+    allowedMentions: cfg.pingRoleId ? { roles: [cfg.pingRoleId] } : { parse: [] },
+  };
+}
+
+/** Publie la boutique dans le salon et la note comme « annoncée ». */
+async function postShop(client, guild, cfg, shop, now = Date.now()) {
+  const channel = getSendable(guild, cfg.channelId);
+  if (!channel) throw new Error('Choisis le salon des annonces (je dois pouvoir y écrire) puis enregistre.');
+  const state = readShopState(client, guild.id);
+  const sent = await safeSend(channel, shopPayload(client, guild, cfg, shop, state.keys || []));
+  if (!sent) throw new Error('Discord a refusé le message (permissions manquantes ? Il faut « Intégrer des liens »).');
+  writeShopState(client, guild.id, { announcedSignature: rl.shopSignature(shop), keys: rl.shopKeys(shop), announcedAt: now, date: shop.date, error: '' });
+  return { url: sent.url };
+}
+
+/** Bouton « Vérifier maintenant » : lit la boutique, sans rien publier. */
+async function checkShopNow(client, guild, now = Date.now()) {
+  const guildId = guild.id;
+  let shop;
+  try {
+    shop = await fetchShop({ force: true, now });
+  } catch (err) {
+    writeShopState(client, guildId, { checkedAt: now, error: String(err.message).slice(0, 300) });
+    throw err;
+  }
+  const state = writeShopState(client, guildId, { checkedAt: now, error: '', currentSignature: rl.shopSignature(shop), currentDate: shop.date });
+  const summary = shopSummary(shop, state.keys || []);
+  const preview = shop.sections.map((sec) => ({
+    id: sec.key, title: rl.sectionTitle(sec), count: sec.items.length, derived: sec.derived,
+    items: sec.items.slice(0, 12).map((i) => ({ name: i.name, image: i.image, kind: rl.frKind(i.kind), price: rl.frPrice(i.price) })),
+  }));
+  return { ...summary, changed: Boolean(state.announcedSignature) && state.announcedSignature !== summary.signature, announced: Boolean(state.announcedSignature), preview };
+}
+
+/** Bouton « Envoyer le message maintenant » : publie la boutique actuelle, qu'elle ait changé ou non. */
+async function sendShopNow(client, guild, cfg, now = Date.now()) {
+  const last = shopSent.get(guild.id) || 0;
+  if (now - last < SHOP_SEND_COOLDOWN_MS) throw new Error('Patiente quelques secondes avant de renvoyer le message.');
+  const shop = await fetchShop({ force: true, now });
+  shopSent.set(guild.id, now);
+  try {
+    const r = await postShop(client, guild, cfg, shop, now);
+    return { ...r, ...shopSummary(shop) };
+  } catch (err) { shopSent.delete(guild.id); throw err; }
+}
+
+/** Passage automatique : annonce quand la boutique change ; le premier passage mémorise l'existant sans rien publier. */
+async function checkShop(client, guild, cfg, now = Date.now()) {
+  let shop;
+  try {
+    shop = await fetchShop({ now });
+  } catch (err) {
+    writeShopState(client, guild.id, { checkedAt: now, error: String(err.message).slice(0, 300) });
+    throw err;
+  }
+  const signature = rl.shopSignature(shop);
+  const state = readShopState(client, guild.id);
+  writeShopState(client, guild.id, { checkedAt: now, error: '', currentSignature: signature, currentDate: shop.date });
+  if (!state.announcedSignature) {
+    writeShopState(client, guild.id, { announcedSignature: signature, keys: rl.shopKeys(shop), date: shop.date });
+    return { posted: false, initial: true };
+  }
+  if (state.announcedSignature === signature) return { posted: false, initial: false };
+  try {
+    await postShop(client, guild, cfg, shop, now);
+  } catch (err) {
+    writeShopState(client, guild.id, { error: String(err.message).slice(0, 300) });
+    throw err;
+  }
+  return { posted: true, initial: false };
+}
+
+function shopStatus(client, guildId) {
+  const s = readShopState(client, guildId);
+  return { checkedAt: s.checkedAt || 0, error: s.error || '', announcedAt: s.announcedAt || 0, date: s.date || '', initialized: Boolean(s.announcedSignature), pending: Boolean(s.announcedSignature && s.currentSignature && s.announcedSignature !== s.currentSignature) };
+}
+
+async function tickShop(client, now = Date.now()) {
+  let budget = MAX_SHOP_CHECKS_PER_TICK;
+  for (const guild of client.guilds.cache.values()) {
+    if (budget <= 0) return;
+    const cfg = client.ctx.settings.module(guild.id, 'rlshop');
+    if (!cfg.enabled || !cfg.channelId) continue;
+    const s = readShopState(client, guild.id);
+    if (s.checkedAt && now - s.checkedAt < cfg.intervalMinutes * 60000) continue;
+    budget -= 1;
+    try { await checkShop(client, guild, cfg, now); } catch (err) { console.warn(`[boutique rocket league] ${guild.id}: ${err.message}`); }
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Formulaire /lfg : le joueur écrit lui-même chaque information          */
 /* ------------------------------------------------------------------ */
@@ -263,4 +432,6 @@ async function tickLfg(client, now = Date.now()) {
   }
 }
 
-module.exports = { cooldown, openForm, lfgForm, cooldownLeft, readPrefs, createLfg, handleInteraction, tickLfg, lfgPayload, listPosts, bestRole, MAX_ACTIVE_PER_GUILD };
+module.exports = {
+  setShopFetch, fetchShop, shopPayload, postShop, checkShop, checkShopNow, sendShopNow, shopStatus, tickShop, readShopState,
+  cooldown, openForm, lfgForm, cooldownLeft, readPrefs, createLfg, handleInteraction, tickLfg, lfgPayload, listPosts, bestRole, MAX_ACTIVE_PER_GUILD };

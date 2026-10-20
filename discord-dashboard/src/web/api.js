@@ -20,6 +20,7 @@ const honeypot = require('../bot/modules/honeypot');
 const feeds = require('../bot/modules/feeds');
 const streams = require('../bot/modules/streams');
 const tiktok = require('../bot/modules/tiktok');
+const rocketleague = require('../bot/modules/rocketleague');
 const dms = require('../bot/modules/dms');
 const invitesModule = require('../bot/modules/invites');
 const serverstats = require('../bot/modules/serverstats');
@@ -620,6 +621,30 @@ function createApiRouter({ client, db, settings, config }) {
     try {
       const r = await tiktok.testVideo(client, req.guild, cfg);
       record(req, 'tiktok', 'Test de l’annonce de vidéo TikTok');
+      res.json({ ok: true, ...r });
+    } catch (err) {
+      throw new HttpError(400, err.message);
+    }
+  });
+
+  /* --- Boutique Rocket League --- */
+  guildRouter.get('/rlshop/status', (req, res) => res.json(rocketleague.shopStatus(client, req.guild.id)));
+
+  guildRouter.post('/actions/rlshop-check', requireAdmin, async (req, res) => {
+    try {
+      const r = await rocketleague.checkShopNow(client, req.guild);
+      record(req, 'rlshop', 'Vérification de la boutique Rocket League');
+      res.json({ ok: true, ...r });
+    } catch (err) {
+      throw new HttpError(400, err.message);
+    }
+  });
+
+  guildRouter.post('/actions/rlshop-send', requireAdmin, async (req, res) => {
+    const cfg = settings.module(req.guild.id, 'rlshop');
+    try {
+      const r = await rocketleague.sendShopNow(client, req.guild, cfg);
+      record(req, 'rlshop', 'Envoi de la boutique Rocket League');
       res.json({ ok: true, ...r });
     } catch (err) {
       throw new HttpError(400, err.message);

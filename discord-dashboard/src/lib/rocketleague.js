@@ -114,5 +114,146 @@ const CHALLENGES = [
 ];
 const pickChallenge = (rnd = rndInt) => CHALLENGES[rnd(CHALLENGES.length)];
 
+
+/* ------------------------------------------------------------------ */
+/* Boutique d'objets : lecture de la page publique itemshop.gg           */
+/* ------------------------------------------------------------------ */
+// Rocket League n'a pas d'API publique pour sa boutique : on lit la page d'un site de suivi (adresse fixe, jamais saisie par un utilisateur).
+const SHOP_URL = 'https://itemshop.gg/rocket-league';
+const SHOP_SOURCE = 'itemshop.gg';
+const DERIVED_SECTIONS = new Set(['new-today', 'leaving-soon']); // listes qui reprennent des objets déjà présents ailleurs
+
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+function decodeEntities(text) {
+  return String(text ?? '').replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, e) => {
+    if (e[0] === '#') {
+      const code = e[1].toLowerCase() === 'x' ? Number.parseInt(e.slice(2), 16) : Number.parseInt(e.slice(1), 10);
+      return Number.isFinite(code) && code > 0 && code < 0x110000 ? String.fromCodePoint(code) : all;
+    }
+    return ENTITIES[e.toLowerCase()] ?? all;
+  });
+}
+const stripTags = (html) => decodeEntities(String(html || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+const safeImage = (url) => { const u = decodeEntities(url).trim(); return /^https:\/\/[^\s"'<>]{4,290}$/.test(u) ? u : ''; };
+
+const MONTHS_EN = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/**
+ * Lit la page de la boutique. Renvoie { date, banner, sections: [{ id, key, title, derived, items: [{ name, image, kind, price, badge }] }], itemCount }.
+ * Lève une erreur en français si la page n'a plus le format attendu : rien n'est alors annoncé.
+ */
+function parseShop(html) {
+  const page = String(html || '').replace(/<script[\s\S]*?<\/script>/gi, '');
+  const starts = [];
+  const re = /<section\b[^>]*\bid="([^"]+)"[^>]*>/g;
+  for (let m = re.exec(page); m; m = re.exec(page)) starts.push({ id: m[1], at: m.index, len: m[0].length });
+  const byId = new Map();
+  for (const st of starts) {
+    const end = page.indexOf('</section>', st.at);
+    const body = page.slice(st.at + st.len, end < 0 ? undefined : end);
+    const title = cleanField(stripTags((body.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/) || [])[1] || ''), 80);
+    const items = [];
+    for (const chunk of body.split(/<div class="isg-card[ "]/).slice(1)) {
+      const name = cleanField(decodeEntities((chunk.match(/aria-label="([^"]*)"/) || [])[1] || ''), 100);
+      const image = safeImage((chunk.match(/<img\b[^>]*\bsrc="([^"]+)"/) || [])[1] || '');
+      if (!name || !image) continue;
+      const paragraphs = [...chunk.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)].map((x) => stripTags(x[1]));
+      const price = cleanField(stripTags((chunk.match(/data-currency="[^"]*"[^>]*>(?:<img\b[^>]*>)?\s*<span\b[^>]*>([^<]*)<\/span>/) || [])[1] || ''), 20);
+      const badge = cleanField(stripTags((chunk.match(/class="isg-badge[^"]*"[^>]*>([^<]*)</) || [])[1] || ''), 30);
+      items.push({ name, image, kind: cleanField(paragraphs[1] || '', 80), price, badge });
+    }
+    if (!title && !items.length) continue;
+    const key = st.id.replace(/-\d+$/, '');
+    const known = byId.get(key);
+    if (!known) { byId.set(key, { id: st.id, key, title: title || key, derived: DERIVED_SECTIONS.has(key), items }); continue; }
+    // la même section peut apparaître deux fois dans la page : on fusionne sans doublon
+    const have = new Set(known.items.map((i) => `${i.name}|${i.image}`));
+    for (const it of items) if (!have.has(`${it.name}|${it.image}`)) known.items.push(it);
+  }
+  const sections = [...byId.values()].filter((sec) => sec.items.length);
+  const unique = new Set(sections.filter((sec) => !sec.derived).flatMap((sec) => sec.items.map((i) => `${i.name}|${i.image}`)));
+  if (unique.size < 5) throw new Error('La page de la boutique n’a plus le format attendu (aucun objet trouvé). Le site a sûrement changé : rien n’est annoncé.');
+
+  const title = stripTags((page.match(/<title>([^<]*)<\/title>/) || [])[1] || '');
+  const d = title.match(/([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})/);
+  const month = d ? MONTHS_EN.indexOf(d[1].toLowerCase()) : -1;
+  const date = d && month >= 0 ? `${d[3]}-${String(month + 1).padStart(2, '0')}-${String(d[2]).padStart(2, '0')}` : '';
+  const banner = safeImage((page.match(/<meta\b[^>]*property="og:image"[^>]*content="([^"]+)"/) || page.match(/<meta\b[^>]*content="([^"]+)"[^>]*property="og:image"/) || [])[1] || '');
+  return { date, banner, sections, itemCount: unique.size };
+}
+
+const itemKey = (i) => `${i.name}|${i.image}`;
+/** Empreinte de la boutique (change quand un objet ou un prix change ; les listes « nouveau » et « dernier jour » ne comptent pas). */
+function shopSignature(shop) {
+  const rows = shop.sections.filter((sec) => !sec.derived).flatMap((sec) => sec.items.map((i) => `${itemKey(i)}|${i.price}`)).sort();
+  return crypto.createHash('sha1').update(rows.join('\n')).digest('hex').slice(0, 16);
+}
+/** Clés de tous les objets (une seule fois chacun), hors listes dérivées. */
+const shopKeys = (shop) => [...new Set(shop.sections.filter((sec) => !sec.derived).flatMap((sec) => sec.items.map(itemKey)))];
+const sectionOf = (shop, key) => shop.sections.find((sec) => sec.key === key);
+
+/** Nouveautés : la liste « new today » du site ; à défaut, les objets absents de la boutique précédente. */
+function newItems(shop, previousKeys = []) {
+  const listed = sectionOf(shop, 'new-today')?.items;
+  if (listed?.length) return listed;
+  const had = new Set(previousKeys);
+  const seen = new Set();
+  return shop.sections.filter((sec) => !sec.derived).flatMap((sec) => sec.items).filter((i) => !had.has(itemKey(i)) && !seen.has(itemKey(i)) && seen.add(itemKey(i)));
+}
+const leavingItems = (shop) => sectionOf(shop, 'leaving-soon')?.items || [];
+
+/* ---- Textes en français ---- */
+const RARITY_FR = [['black market', 'Marché noir'], ['very rare', 'Très rare'], ['uncommon', 'Peu commun'], ['exotic', 'Exotique'], ['import', 'Import'], ['limited', 'Limité'], ['common', 'Commun'], ['rare', 'Rare']];
+const KIND_FR = {
+  body: 'Carrosserie', 'goal explosion': 'Explosion de but', wheels: 'Jantes', decal: 'Décalcomanie', 'animated decal': 'Décalcomanie animée', trail: 'Traînée', 'player anthem': 'Hymne',
+  antenna: 'Antenne', topper: 'Chapeau', boost: 'Boost', 'paint finish': 'Peinture', 'player banner': 'Bannière', 'avatar border': 'Cadre d’avatar', 'player title': 'Titre', 'engine audio': 'Son du moteur',
+};
+function frKind(text) {
+  const raw = cleanField(text, 80);
+  const items = raw.match(/^(\d+) items?\b(.*)$/i);
+  if (items) return `${items[1]} objet${items[1] === '1' ? '' : 's'}${items[2].replace(/Credits each/i, 'crédits chacun').replace(/Credits/i, 'crédits')}`;
+  const low = raw.toLowerCase();
+  const rarity = RARITY_FR.find(([en]) => low.startsWith(`${en} `));
+  const rest = rarity ? raw.slice(rarity[0].length + 1) : raw;
+  const kind = KIND_FR[rest.toLowerCase()] || rest;
+  return rarity ? `${kind} · ${rarity[1]}` : kind;
+}
+function frPrice(price) {
+  const p = cleanField(price, 20);
+  if (!p) return '';
+  if (/^free$/i.test(p)) return 'Gratuit';
+  return /^[\d,]+$/.test(p) ? `${p.replace(/,/g, ' ')} crédits` : p;
+}
+const SECTION_FR = { 'new-today': 'Nouveautés du jour', 'leaving-soon': 'Derniers jours', 'featured-shop': 'Boutique à la une', bundles: 'Lots', rlcs: 'RLCS' };
+const sectionTitle = (sec) => SECTION_FR[sec.key] || sec.title;
+const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+function frDate(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${Number(m[3])} ${MONTHS_FR[Number(m[2]) - 1]} ${m[1]}` : '';
+}
+/** Liste à puces d'objets, bornée en longueur. */
+function itemLines(items, max = 1000) {
+  const lines = [];
+  let size = 0;
+  for (const [n, it] of items.entries()) {
+    const line = `• **${it.name}**${it.kind ? ` (${frKind(it.kind)})` : ''}${it.price ? ` : ${frPrice(it.price)}` : ''}`;
+    if (size + line.length + 1 > max) { lines.push(`… et ${items.length - n} autre${items.length - n > 1 ? 's' : ''}`); break; }
+    lines.push(line);
+    size += line.length + 1;
+  }
+  return lines.join('\n') || 'Rien pour le moment.';
+}
+/** Images à montrer : nouveautés d'abord, puis derniers jours, sans doublon. */
+function pickImages(shop, previousKeys, limit) {
+  const out = [];
+  const seen = new Set();
+  for (const it of [...newItems(shop, previousKeys), ...leavingItems(shop)]) {
+    if (out.length >= limit) break;
+    if (!seen.has(it.image)) { seen.add(it.image); out.push(it); }
+  }
+  return out;
+}
+
 module.exports = {
+  SHOP_URL, SHOP_SOURCE, parseShop, shopSignature, shopKeys, newItems, leavingItems, frKind, frPrice, frDate, itemLines, pickImages, sectionTitle, decodeEntities,
   AGE_MIN, AGE_MAX, hasLink, cleanField, parseAge, resolveMode, MODES, modeById, shuffle, splitTeams, matchCredentials, CHALLENGES, pickChallenge };

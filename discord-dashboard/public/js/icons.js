@@ -143,5 +143,5 @@ export const MODULE_ICONS = {
   confessions: 'eyeOff', bump: 'megaphone', boosts: 'gem',
   economy: 'coins', fun: 'gamepad', ai: 'sparkles',
   rolepanels: 'circleDot', commands: 'message', tempvoice: 'volume', counters: 'activity', channelrules: 'ruler',
-  dms: 'mail', feeds: 'rss', streams: 'radio', tiktokvideos: 'video', tiktoklive: 'radio', rocketleague: 'rocket', invites: 'link', serverstats: 'chart', automessages: 'alarm', sticky: 'pin', nickname: 'type',
+  dms: 'mail', feeds: 'rss', streams: 'radio', tiktokvideos: 'video', tiktoklive: 'radio', rocketleague: 'rocket', rlshop: 'gift', invites: 'link', serverstats: 'chart', automessages: 'alarm', sticky: 'pin', nickname: 'type',
 };

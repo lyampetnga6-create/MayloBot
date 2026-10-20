@@ -362,6 +362,14 @@ tbody tr:hover { background: var(--panel-2); }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; margin: 0; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
+.rlshop-sec { margin-top: 18px; }
+.rlshop-sec h4 { margin: 0 0 10px; font-size: 14px; }
+.rlshop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; align-items: start; }
+.rlshop-item { margin: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2); overflow: hidden; }
+.rlshop-item img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; background: var(--field); }
+.rlshop-item figcaption { display: grid; gap: 2px; padding: 6px 8px 8px; font-size: 12px; }
+.rlshop-item figcaption strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rlshop-item figcaption span { color: var(--muted); }
 .status-line { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
 .status-dot.on { background: var(--good); }

@@ -771,6 +771,7 @@ const CATEGORIES = [
   { id: 'security', name: 'Sécurité' },
   { id: 'support', name: 'Support' },
   { id: 'community', name: 'Communauté' },
+  { id: 'twitch', name: 'Twitch' },
   { id: 'valorant', name: 'Valorant' },
   { id: 'fun', name: 'Fun & économie' },
   { id: 'automation', name: 'Automatisation' },

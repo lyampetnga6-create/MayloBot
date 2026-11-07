@@ -405,6 +405,39 @@ function credentials(client) {
   return { twitch: Boolean(c.twitchClientId && c.twitchClientSecret), kick: Boolean(c.kickClientId && c.kickClientSecret) };
 }
 
+/* ------------------------------------------------------------------ */
+/* Module dédié « Twitch · Lives » (un seul compte, comme « TikTok · Lives ») */
+/* ------------------------------------------------------------------ */
+const TWITCH_LIVE_ID = 'twitch-live';
+
+/** Le compte du module, au format attendu par le moteur d'alertes. */
+const twitchLiveItem = (cfg) => ({
+  id: TWITCH_LIVE_ID, platform: 'twitch', handle: cfg.account, channelId: cfg.channelId, pingRoleId: cfg.pingRoleId, pingEveryone: cfg.pingEveryone,
+  message: cfg.message, endMessage: cfg.endMessage, endMode: cfg.endMode, liveUpdate: cfg.liveUpdate,
+});
+
+function twitchLiveStatus(client, guildId, cfg) {
+  const s = statuses(client, guildId, [twitchLiveItem(cfg)])[0];
+  return { live: s.live, title: s.title, checkedAt: s.checkedAt, error: s.error };
+}
+
+/** Bouton « Tester » : s'il est en direct, envoie l'annonce maintenant ; sinon explique que rien n'est en cours. */
+async function testTwitchLive(client, guild, cfg) {
+  normalizeHandle('twitch', cfg.account); // message d'erreur clair si le nom est vide ou invalide
+  return testStreamer(client, guild, twitchLiveItem(cfg));
+}
+
+async function tickTwitchLive(client) {
+  for (const guild of client.guilds.cache.values()) {
+    const cfg = client.ctx.settings.module(guild.id, 'twitchlive');
+    if (!cfg.enabled || !cfg.account || !cfg.channelId) continue;
+    const item = twitchLiveItem(cfg);
+    const s = statuses(client, guild.id, [item])[0];
+    if (s.checkedAt && Date.now() - s.checkedAt < cfg.intervalMinutes * 60000) continue;
+    try { await checkOne(client, guild, item, cfg.cooldownMinutes * 60000); } catch (err) { console.warn(`[twitch lives] ${guild.id}: ${err.message}`); }
+  }
+}
+
 async function tick(client) {
   const due = [];
   for (const guild of client.guilds.cache.values()) {
@@ -427,5 +460,5 @@ async function tick(client) {
 
 module.exports = {
   PLATFORM_LABELS, setFetch, normalizeHandle, parseYoutubeLive, parseTiktokProfile, decide,
-  formatDuration, alertPayload, liveVars, refreshLive, trackRun, newRun, endPayload, finishRun, checkStreamer, checkOne, testStreamer, statuses, credentials, tick,
+  TWITCH_LIVE_ID, twitchLiveItem, twitchLiveStatus, testTwitchLive, tickTwitchLive, formatDuration, alertPayload, liveVars, refreshLive, trackRun, newRun, endPayload, finishRun, checkStreamer, checkOne, testStreamer, statuses, credentials, tick,
 };

@@ -145,5 +145,5 @@ export const MODULE_ICONS = {
   confessions: 'eyeOff', bump: 'megaphone', boosts: 'gem',
   economy: 'coins', fun: 'gamepad', ai: 'sparkles',
   rolepanels: 'circleDot', commands: 'message', tempvoice: 'volume', counters: 'activity', channelrules: 'ruler',
-  dms: 'mail', feeds: 'rss', streams: 'radio', tiktokvideos: 'video', tiktoklive: 'radio', mates: 'crosshair', reactionroles: 'smile', emojis: 'smile', invites: 'link', serverstats: 'chart', automessages: 'alarm', sticky: 'pin', nickname: 'type',
+  dms: 'mail', feeds: 'rss', streams: 'radio', tiktokvideos: 'video', tiktoklive: 'radio', twitchlive: 'radio', mates: 'crosshair', reactionroles: 'smile', emojis: 'smile', invites: 'link', serverstats: 'chart', automessages: 'alarm', sticky: 'pin', nickname: 'type',
 };

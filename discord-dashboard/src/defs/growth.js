@@ -5,16 +5,16 @@ const LIVE_VARS = ['server', 'streamer', 'title', 'game', 'url', 'platform', 'vi
 const VIDEO_VARS = ['server', 'account', 'author', 'title', 'caption', 'link', 'url', 'cover', 'avatar', 'platform'];
 
 /* Messages par défaut : même rendu que les bots de notifications (embed + champs + bouton « Regarder »). Tout est modifiable dans le dashboard. */
-const liveStartDefault = (msg) => msg('🔴 **{streamer}** est en live !', {
-  title: '{streamer} est en live sur {platform} !', url: '{url}', description: '{title}', thumbnail: '{avatar}', image: '{cover}', footer: '{server}',
+const liveStartDefault = (msg, color = '') => msg('🔴 **{streamer}** est en live !', {
+  color, title: '{streamer} est en live sur {platform} !', url: '{url}', description: '{title}', thumbnail: '{avatar}', image: '{cover}', footer: '{server}',
   fields: [
     { name: 'Jeu / catégorie', value: '{game}', inline: true },
     { name: 'Spectateurs 👥', value: '{viewers}', inline: true },
   ],
 }, [{ label: 'Regarder sur {platform}', url: '{url}' }]);
 
-const liveEndDefault = (msg) => msg('', {
-  title: 'Le live de {streamer} est terminé', description: 'Le stream est terminé.', thumbnail: '{avatar}', footer: '{server}',
+const liveEndDefault = (msg, color = '') => msg('', {
+  color, title: 'Le live de {streamer} est terminé', description: 'Le stream est terminé.', thumbnail: '{avatar}', footer: '{server}',
   fields: [
     { name: 'Streamer', value: '{streamer}', inline: true },
     { name: 'Spectateurs max 👥', value: '{maxViewers}', inline: true },
@@ -29,11 +29,11 @@ const videoDefault = (msg) => msg('', {
 }, [{ label: 'Regarder sur {platform}', url: '{link}' }]);
 
 /** Réglages communs à tous les modules de lives : fin de live, mises à jour, mention. */
-const liveCommon = (t, msg) => [
+const liveCommon = (t, msg, color = '') => [
   t.toggle('pingEveryone', 'Mentionner @everyone à chaque live', false),
   t.toggle('liveUpdate', 'Mettre à jour l’annonce pendant le live (spectateurs, titre, jeu)', true),
   t.select('endMode', 'Quand le live se termine', [['edit', 'Transformer l’annonce en récapitulatif'], ['send', 'Envoyer un nouveau message'], ['off', 'Ne rien faire']], 'edit'),
-  t.message('endMessage', 'Message de fin de live', liveEndDefault(msg), { variables: LIVE_VARS, showIf: { key: 'endMode', in: ['edit', 'send'] } }),
+  t.message('endMessage', 'Message de fin de live', liveEndDefault(msg, color), { variables: LIVE_VARS, showIf: { key: 'endMode', in: ['edit', 'send'] } }),
 ];
 
 module.exports = ({ t, msg, MEMBER_VARS }) => [
@@ -94,8 +94,29 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
       t.role('pingRoleId', 'Rôle à mentionner (facultatif)'),
       t.number('intervalMinutes', 'Vérifier toutes les (minutes)', 2, 1, 60, { description: 'À chaque vérification, le bot met à jour les spectateurs sur l’annonce et, quand tu n’es plus en live, il écrit le message de fin.' }),
       t.number('cooldownMinutes', 'Délai minimum entre deux annonces (minutes)', 30, 0, 1440, { description: 'Évite les doubles annonces quand un live se coupe puis reprend.' }),
-      t.message('message', 'Message de début de live', liveStartDefault(msg), { variables: LIVE_VARS }),
-      ...liveCommon(t, msg),
+      t.message('message', 'Message de début de live', liveStartDefault(msg, '#fe2c55'), { variables: LIVE_VARS }),
+      ...liveCommon(t, msg, '#fe2c55'),
+    ],
+  },
+
+  /* ------------------------- Twitch : lives --------------------------- */
+  {
+    id: 'twitchlive',
+    extras: 'twitchlive',
+    category: 'twitch',
+    name: 'Twitch · Lives',
+    icon: 'radio',
+    description: 'Prévient ton serveur dès que tu lances un live Twitch, met à jour l’annonce pendant le live (spectateurs, jeu, titre, image) et la transforme en récapitulatif à la fin. Nécessite TWITCH_CLIENT_ID et TWITCH_CLIENT_SECRET dans les variables de Railway.',
+    toggle: 'enabled',
+    fields: [
+      t.toggle('enabled', 'Activer le module', false),
+      t.text('account', 'Ta chaîne Twitch', '', { maxLength: 200, description: 'Ton nom Twitch (ex. monstreamer) ou le lien de ta chaîne.' }),
+      t.channel('channelId', 'Salon des annonces', ['text']),
+      t.role('pingRoleId', 'Rôle à mentionner (facultatif)'),
+      t.number('intervalMinutes', 'Vérifier toutes les (minutes)', 2, 1, 60, { description: 'À chaque vérification, le bot met à jour les spectateurs sur l’annonce et, quand tu n’es plus en live, il écrit le message de fin.' }),
+      t.number('cooldownMinutes', 'Délai minimum entre deux annonces (minutes)', 30, 0, 1440, { description: 'Évite les doubles annonces quand un live se coupe puis reprend.' }),
+      t.message('message', 'Message de début de live', liveStartDefault(msg, '#9146ff'), { variables: LIVE_VARS }),
+      ...liveCommon(t, msg, '#9146ff'),
     ],
   },
 
@@ -130,7 +151,7 @@ module.exports = ({ t, msg, MEMBER_VARS }) => [
     category: 'community',
     name: 'Alertes de lives',
     icon: 'radio',
-    description: 'Préviens ton serveur dès qu’un streamer lance un direct sur Twitch, Kick ou YouTube. Pour ton compte TikTok, utilise le module dédié « TikTok · Lives ».',
+    description: 'Préviens ton serveur dès qu’un streamer lance un direct sur Twitch, Kick ou YouTube. Pour ton propre compte, utilise plutôt les modules dédiés « Twitch · Lives » et « TikTok · Lives ».',
     toggle: 'enabled',
     fields: [
       t.toggle('enabled', 'Activer le module', false),

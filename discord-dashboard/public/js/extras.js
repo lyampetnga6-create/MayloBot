@@ -245,6 +245,39 @@ function streams(x) {
     keys, box);
 }
 
+/* ------------------------------ Twitch · Lives ------------------------------ */
+function twitchlive(x) {
+  const box = h('div');
+  async function load() {
+    let r;
+    try { r = await api.get(x.url('/twitch/status')); } catch (err) { box.replaceChildren(h('div', { class: 'banner bad' }, err.message)); return; }
+    const st = r.live;
+    const cfg = x.saved();
+    const configured = Boolean(cfg.account && cfg.channelId);
+    let dot = 'warn'; let text;
+    if (!r.credentials.twitch) text = 'Twitch n’est pas encore relié : ajoute TWITCH_CLIENT_ID et TWITCH_CLIENT_SECRET dans les variables de Railway (onglet Variables).';
+    else if (!configured) text = 'Renseigne ta chaîne et le salon, puis enregistre.';
+    else if (!cfg.enabled) text = 'Module désactivé.';
+    else if (!st.checkedAt) text = 'Pas encore vérifié : la première vérification arrive dans quelques minutes.';
+    else if (st.error) text = `Dernière vérification en erreur : ${st.error}`;
+    else { dot = 'on'; text = st.live ? `En direct maintenant${st.title ? ` : ${st.title}` : ''}` : 'Hors ligne pour l’instant'; }
+    box.replaceChildren(
+      h('div', { class: 'status-line' }, h('span', { class: `status-dot ${dot}` }), text),
+      st.checkedAt ? h('p', { class: 'muted' }, `Dernière vérification : ${fmtDate(st.checkedAt)}`) : null,
+      h('button', { class: 'btn btn-sm', disabled: !x.isAdmin || !configured, onclick: busy(async () => {
+        if (!(await x.saveFirst())) return;
+        const res = await api.post(x.url('/actions/twitchlive-test'));
+        if (!res.live) toast('Tu n’es pas en direct pour l’instant : rien n’a été envoyé.', 'warn', 6000);
+        else linkToast('Alerte envoyée.', res.url);
+        load();
+      }) }, icon('send', 14), 'Tester l’alerte'));
+  }
+  load();
+  return panel('État',
+    h('p', { class: 'muted' }, 'Le bot surveille ta chaîne : une annonce quand tu lances ton live, mise à jour des spectateurs pendant le live, puis récapitulatif à la fin. Au premier passage il note simplement ton état. « Tester » envoie l’annonce tout de suite si tu es en direct.'),
+    box);
+}
+
 /* ----------------------------- Messagerie privée ----------------------------- */
 function dms(x) {
   return panel('Lire et répondre',
@@ -354,4 +387,4 @@ function emojis(x) {
     box, grid);
 }
 
-export const EXTRAS = { tickets, ai, protection, honeypot, verification, feeds, streams, tiktokvideos, tiktoklive, emojis, invites, dms };
+export const EXTRAS = { tickets, ai, protection, honeypot, verification, feeds, streams, twitchlive, tiktokvideos, tiktoklive, emojis, invites, dms };

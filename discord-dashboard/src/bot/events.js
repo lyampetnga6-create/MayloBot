@@ -102,6 +102,7 @@ const JOBS = [
   { name: 'tiktok vidéos', everyMs: 2 * MIN, firstMs: 75 * 1000, run: (c) => tiktok.tickVideos(c) },
   { name: 'recherche de mates', everyMs: 2 * MIN, firstMs: 90 * 1000, run: (c) => mates.tickLfg(c) },
   { name: 'tiktok lives', everyMs: MIN, firstMs: 50 * 1000, run: (c) => tiktok.tickLive(c) },
+  { name: 'twitch lives', everyMs: MIN, firstMs: 55 * 1000, run: (c) => streams.tickTwitchLive(c) },
   { name: 'nettoyage messagerie', everyMs: 60 * MIN, firstMs: 5 * MIN, run: (c) => dms.tick(c) },
   { name: 'statistiques', everyMs: 30 * 1000, run: (c) => serverstats.tick(c) },
   { name: 'vérification', everyMs: 2 * MIN, run: (c) => verification.tick(c) },

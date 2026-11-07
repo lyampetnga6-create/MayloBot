@@ -134,6 +134,45 @@ function parseRsshubPosts(xml, handle) {
   }).filter((e) => e.id);
 }
 
+/**
+ * Page « embed » d'un compte (tiktok.com/embed/@nom) : c'est TikTok lui-même qui y liste les dernières vidéos
+ * (identifiant, légende, image de couverture). Pas de date dans la page : elle est déduite de l'identifiant de la vidéo,
+ * qui contient l'heure de création dans ses bits de poids fort.
+ */
+function idToTime(id) {
+  try {
+    const t = Number(BigInt(id) >> 32n) * 1000;
+    return t > 1.4e12 && t < Date.now() + 86400000 ? t : 0;
+  } catch { return 0; }
+}
+
+function parseEmbedPage(html, handle) {
+  const raw = String(html || '').match(/<script id="__FRONTITY_CONNECT_STATE__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+  if (!raw) throw new Error('La page du compte n’a pas renvoyé les vidéos (TikTok bloque parfois les serveurs).');
+  let json;
+  try { json = JSON.parse(raw); } catch { throw new Error('Réponse TikTok illisible.'); }
+  const data = json?.source?.data;
+  const page = data && Object.entries(data).find(([k, v]) => k.startsWith('/embed/@') && Array.isArray(v?.videoList))?.[1];
+  if (!page) {
+    const info = data && Object.values(data).find((v) => v?.userInfo);
+    if (info?.userInfo?.privateAccount) throw new Error('Compte TikTok privé.');
+    throw new Error('Compte TikTok introuvable, ou sans vidéo visible.');
+  }
+  const user = page.userInfo || {};
+  return page.videoList.map((v) => {
+    const id = String(v?.id || '').match(/^\d{8,25}$/)?.[0] || '';
+    return {
+      id, title: cleanTitle(v?.desc), link: `https://www.tiktok.com/@${handle}/video/${id}`, published: idToTime(id),
+      cover: httpUrl(v?.originCoverUrl || v?.coverUrl || v?.dynamicCoverUrl), author: cleanTitle(user.nickname).slice(0, 80), avatar: httpUrl(user.avatarThumbUrl),
+    };
+  }).filter((e) => e.id && !videoPrivate(page.videoList, e.id));
+}
+const videoPrivate = (list, id) => Boolean(list.find((v) => String(v?.id) === id)?.privateItem);
+
+async function fromEmbed(handle) {
+  return parseEmbedPage(await fetchRaw(`https://www.tiktok.com/embed/@${encodeURIComponent(handle)}`, { headers: { accept: 'text/html' } }), handle);
+}
+
 async function fromTikwm(handle) {
   const text = await fetchRaw(`https://www.tikwm.com/api/user/posts?unique_id=${encodeURIComponent(handle)}&count=12&cursor=0`, { headers: { accept: 'application/json' } });
   let json;
@@ -169,10 +208,11 @@ async function lookupVideos(handleInput, { rsshubUrl = '', feedUrl = '' } = {}) 
   const handle = normalizeHandle(handleInput);
   const customHub = rsshubUrl && String(rsshubUrl).replace(/\/+$/, '') !== DEFAULT_RSSHUB;
   const sources = [
+    { name: 'embed', run: () => fromEmbed(handle) },
     { name: 'tikwm', run: () => fromTikwm(handle) },
     { name: 'rsshub', run: () => fromRsshub(handle, rsshubUrl) },
   ];
-  if (customHub) sources.reverse();
+  if (customHub) sources.splice(1, 2, sources[2], sources[1]); // RSSHub à toi avant tikwm
   if (String(feedUrl || '').trim()) sources.unshift({ name: 'feed', run: () => fromCustomFeed(handle, feedUrl) });
   const errors = [];
   let empty = null;
@@ -181,7 +221,7 @@ async function lookupVideos(handleInput, { rsshubUrl = '', feedUrl = '' } = {}) 
       const entries = await src.run();
       if (entries.length) return { entries, source: src.name };
       empty = { entries: [], source: src.name };
-    } catch (err) { errors.push(`${{ tikwm: 'Service tikwm', rsshub: 'RSSHub', feed: 'Ton flux RSS' }[src.name]} : ${err.message}`); }
+    } catch (err) { errors.push(`${{ embed: 'Page TikTok', tikwm: 'Service tikwm', rsshub: 'RSSHub', feed: 'Ton flux RSS' }[src.name]} : ${err.message}`); }
   }
   if (empty) return empty;
   throw new Error(errors.join(' | '));
@@ -214,5 +254,5 @@ async function videoTitle(url) {
 
 module.exports = {
   customFeedUrl, parseVideoLink, videoTitle,
-  setFetch, normalizeHandle, parseLiveRoom, parseProfilePage, lookupLive, parseTikwmPosts, parseRsshubPosts, lookupVideos, DEFAULT_RSSHUB,
+  setFetch, normalizeHandle, parseLiveRoom, parseProfilePage, lookupLive, parseEmbedPage, idToTime, parseTikwmPosts, parseRsshubPosts, lookupVideos, DEFAULT_RSSHUB,
 };

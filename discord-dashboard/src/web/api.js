@@ -610,6 +610,22 @@ function createApiRouter({ client, db, settings, config }) {
     }
   });
 
+  /* --- Twitch : module dédié aux lives --- */
+  guildRouter.get('/twitch/status', (req, res) => {
+    res.json({ live: streams.twitchLiveStatus(client, req.guild.id, settings.module(req.guild.id, 'twitchlive')), credentials: streams.credentials(client) });
+  });
+
+  guildRouter.post('/actions/twitchlive-test', requireAdmin, async (req, res) => {
+    const cfg = settings.module(req.guild.id, 'twitchlive');
+    try {
+      const r = await streams.testTwitchLive(client, req.guild, cfg);
+      record(req, 'twitch', 'Test de l’annonce de live Twitch');
+      res.json({ ok: true, ...r });
+    } catch (err) {
+      throw new HttpError(400, err.message);
+    }
+  });
+
   /* --- TikTok : vidéos et lives (deux modules séparés) --- */
   guildRouter.get('/tiktok/status', (req, res) => {
     res.json({

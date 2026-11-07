@@ -3,7 +3,7 @@
 Un bot Discord **modulaire** et son **dashboard web** pour le configurer, dans un seul projet Node.js.
 Les administrateurs se connectent avec Discord, choisissent leur serveur et règlent chaque module depuis le site.
 
-- **42 modules** réglables, plus de **500 options** (liste dans [FEATURES.md](FEATURES.md))
+- **43 modules** réglables, plus de **500 options** (liste dans [FEATURES.md](FEATURES.md))
 - **94 commandes slash**
 - Tickets avec **IA configurable**, **protections** (anti-raid, anti-nuke, verrouillage), **honeypot**, **journaux**
 - **Webhooks** et bibliothèque de **messages enregistrés sans limite**
@@ -174,9 +174,14 @@ Variables des messages : `{account}`, `{author}`, `{title}`, `{link}`, `{cover}`
 **À savoir** : TikTok n'offre aucun accès officiel pour cela, donc le bot passe par des sources publiques non officielles, qui peuvent être bloquées ou changer sans prévenir :
 - Vidéos : le service public tikwm.com, puis une instance RSSHub en secours (`RSSHUB_URL`, par défaut `rsshub.app` ; si tu héberges la tienne, elle passe en premier).
 - Lives : l'API web de TikTok, puis la page de ton profil en secours.
+- Vidéos : d'abord la page « embed » de TikTok (`tiktok.com/embed/@toncompte`, où TikTok liste lui-même tes dernières vidéos avec légende et image ; la date est lue dans l'identifiant de la vidéo), puis tikwm, puis RSSHub.
 Depuis un hébergeur comme Railway, TikTok bloque parfois les requêtes. Le dashboard affiche alors l'erreur exacte, et rien n'est annoncé par erreur. Si ça arrive (erreur 403) :
 - **Annonce à la main, toujours possible** : `/tiktok video lien:<lien de ta vidéo>` (titre repris de TikTok, ou donné par toi) et `/tiktok live` (titre facultatif). Même message, même salon, même rôle que l'automatique, et la vidéo n'est pas annoncée deux fois. Commande réservée à « Gérer le serveur ».
 - **Flux RSS personnalisé** : champ « Flux RSS de tes vidéos » du module (`{account}` est remplacé par ton compte), essayé avant les autres sources. Utile si tu as un RSSHub à toi ou un service qui fabrique un flux RSS d'un compte TikTok.
+
+## Twitch : catégorie dédiée
+
+Le module **Twitch · Lives** (catégorie « Twitch » du dashboard) fonctionne comme celui de TikTok : ta chaîne, un salon, un rôle ou @everyone, annonce au début du live, mise à jour des spectateurs pendant le live, récapitulatif à la fin. Messages modifiables en entier (champs, boutons, image). Il faut créer une application Twitch gratuite (dev.twitch.tv/console) et mettre `TWITCH_CLIENT_ID` et `TWITCH_CLIENT_SECRET` dans les variables de Railway. L'annonce reprend l'image du live et ta photo de profil.
 
 ## Alertes de lives et de vidéos (autres plateformes)
 

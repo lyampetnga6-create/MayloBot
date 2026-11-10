@@ -1,5 +1,9 @@
 'use strict';
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const express = require('express');
+const Database = require('better-sqlite3');
 const { PermissionFlagsBits } = require('discord.js');
 
 const { MODULES, MODULE_BY_ID, publicSchema, normalizeValue, SNOWFLAKE } = require('../schema');
@@ -1034,6 +1038,7 @@ function createApiRouter({ client, db, settings, config }) {
       licenseEnabled: license.enabled,
       statuses: STATUSES,
       types: TYPES,
+      dbTransfer: config.allowDbTransfer,
       uptime: Math.round(process.uptime()),
       ping: Math.round(client.ws.ping),
       memory: Math.round(process.memoryUsage().rss / 1048576),
@@ -1041,6 +1046,46 @@ function createApiRouter({ client, db, settings, config }) {
         .sort((a, b) => b.memberCount - a.memberCount)
         .map((g) => ({ id: g.id, name: g.name, memberCount: g.memberCount, icon: g.iconURL({ size: 64, extension: 'png' }), license: license.status(g.id, g.ownerId).state })),
     });
+  });
+
+  /* --- Transfert de la base (déménagement vers un autre hébergeur) : réservé aux admins, et seulement si ALLOW_DB_TRANSFER=true --- */
+  const requireTransfer = (req, res, next) => (config.allowDbTransfer ? next() : res.status(403).json({ error: 'Transfert désactivé : ajoute la variable ALLOW_DB_TRANSFER=true dans l’hébergeur.' }));
+
+  router.get('/admin/db-export', requireAuth, requireOwner, requireTransfer, async (req, res) => {
+    const tmp = path.join(os.tmpdir(), `maylobot-export-${Date.now()}.db`);
+    try {
+      await db.backup(tmp); // copie cohérente, même pendant que le bot tourne
+    } catch (err) {
+      fs.rmSync(tmp, { force: true });
+      throw new HttpError(500, `Sauvegarde impossible : ${err.message}`);
+    }
+    record(req, 'admin', 'Base de données téléchargée');
+    res.download(tmp, `maylobot-${new Date().toISOString().slice(0, 10)}.db`, () => fs.rmSync(tmp, { force: true }));
+  });
+
+  router.post('/admin/db-import', requireAuth, requireOwner, requireTransfer, express.raw({ type: 'application/octet-stream', limit: '300mb' }), (req, res) => {
+    const body = req.body;
+    if (!Buffer.isBuffer(body) || body.length < 1024 || body.subarray(0, 16).toString('latin1') !== 'SQLite format 3\0') {
+      throw new HttpError(400, 'Ce fichier n’est pas une base MayloBot (fichier .db attendu).');
+    }
+    const target = path.resolve(config.dbPath);
+    const upload = `${target}.upload`;
+    try {
+      fs.writeFileSync(upload, body);
+      const test = new Database(upload, { readonly: true, fileMustExist: true });
+      try {
+        if (test.pragma('integrity_check', { simple: true }) !== 'ok') throw new Error('fichier abîmé');
+        if (!test.prepare("SELECT 1 FROM sqlite_master WHERE name = 'guild_settings'").get()) throw new Error('ce n’est pas une base MayloBot');
+      } finally { test.close(); }
+      fs.renameSync(upload, `${target}.import`);
+    } catch (err) {
+      fs.rmSync(upload, { force: true });
+      throw new HttpError(400, `Base refusée : ${err.message}`);
+    }
+    record(req, 'admin', 'Base de données envoyée (remplacement au redémarrage)');
+    res.json({ ok: true });
+    // Le remplacement se fait au démarrage : on redémarre (l'hébergeur relance le bot tout seul).
+    setTimeout(() => process.exit(1), 1500);
   });
 
   /* --- Licences (propriétaires du bot) --- */

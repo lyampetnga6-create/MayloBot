@@ -22,6 +22,8 @@ const config = {
   trustProxy: env.TRUST_PROXY || '',
   dbPath: env.DB_PATH || './data/bot.db',
   supportUrl: env.SUPPORT_URL || '',
+  // Sauvegarde / transfert de la base depuis la page Administration (désactivé par défaut : à activer le temps d'un déménagement).
+  allowDbTransfer: env.ALLOW_DB_TRANSFER === 'true',
   // IA « par défaut » du bot (optionnelle). Chaque serveur peut aussi utiliser sa propre clé depuis le dashboard.
   ai: {
     provider: (env.AI_PROVIDER || 'openai').toLowerCase(),

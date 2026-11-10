@@ -270,6 +270,15 @@ La page **Admin** du dashboard (propriétaires du bot) affiche l'état de cette 
 - Lance-le avec un gestionnaire de processus (`pm2 start src/index.js --name bot`, systemd, Docker…).
 - Sauvegarde le dossier `data/` régulièrement.
 
+## Déménager vers un autre compte Railway (garder ses réglages)
+
+1. Sur l'**ancien** projet ET le **nouveau**, mets le code à jour (même dépôt GitHub) et ajoute la variable `ALLOW_DB_TRANSFER=true`.
+2. Ancien projet : dashboard, page **Administration** (compte administrateur), carte « Déménagement de la base de données » → **Télécharger la base** (fichier `.db`).
+3. Nouveau projet : même page, **Envoyer et remplacer la base** avec ce fichier. Le bot redémarre tout seul avec tes réglages, niveaux, tickets…
+4. Retire `ALLOW_DB_TRANSFER` des deux projets (les boutons disparaissent). Ne supprime l'ancien projet qu'après avoir vérifié que tout est bien là.
+
+La base contient des données sensibles (réglages, clés IA des serveurs) : ne partage jamais ce fichier. La base remplacée est gardée à côté sous le nom `bot.db.avant-import`.
+
 ## Héberger sur Railway (sans serveur à gérer)
 
 1. Mets le projet sur GitHub (dépôt **privé**). Ne mets jamais le fichier `.env`, ni `node_modules`, ni `data` : le `.gitignore` fourni les exclut.

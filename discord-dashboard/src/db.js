@@ -12,8 +12,26 @@ function addColumn(db, table, column, definition) {
   if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
+/**
+ * Si une base a été envoyée depuis la page Administration (fichier « <base>.import »), elle remplace la base actuelle
+ * au démarrage, avant son ouverture. L'ancienne est gardée à côté sous « .avant-import ».
+ */
+function applyPendingImport(file) {
+  const target = path.resolve(file);
+  const pending = `${target}.import`;
+  if (!fs.existsSync(pending)) return false;
+  if (fs.existsSync(target)) fs.renameSync(target, `${target}.avant-import`);
+  for (const ext of ['-wal', '-shm']) fs.rmSync(`${target}${ext}`, { force: true });
+  fs.renameSync(pending, target);
+  console.log('[base] Base de données importée : elle remplace l’ancienne.');
+  return true;
+}
+
 function openDatabase(file) {
-  if (file !== ':memory:') fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  if (file !== ':memory:') {
+    fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+    applyPendingImport(file);
+  }
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -438,4 +456,4 @@ function openDatabase(file) {
   return db;
 }
 
-module.exports = { openDatabase, addColumn };
+module.exports = { openDatabase, addColumn, applyPendingImport };

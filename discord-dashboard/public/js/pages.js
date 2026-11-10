@@ -426,6 +426,28 @@ export function backupPage(root) {
 /* ---------------------------------------------------------------- */
 /* Administration du bot (propriétaires)                             */
 /* ---------------------------------------------------------------- */
+/** Déménagement : télécharger la base de l'ancien hébergeur, l'envoyer sur le nouveau. */
+function dbTransferCard() {
+  const file = h('input', { type: 'file', accept: '.db,application/octet-stream', class: 'input' });
+  const send = h('button', { class: 'btn btn-danger', onclick: async () => {
+    const f = file.files[0];
+    if (!f) { toast('Choisis d’abord le fichier .db téléchargé.', 'warn'); return; }
+    if (!(await confirmDialog({ title: 'Remplacer la base ?', text: 'Tous les réglages, niveaux, tickets… actuels de CE bot seront remplacés par ceux du fichier. Le bot redémarre ensuite.', confirmLabel: 'Remplacer', danger: true }))) return;
+    send.disabled = true;
+    try {
+      const res = await fetch('/api/admin/db-import', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream', 'X-Dashboard': '1' }, body: f });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+      toast('Base envoyée. Le bot redémarre : recharge la page dans une minute.', 'good', 9000);
+    } catch (e) { toast(e.message, 'bad', 7000); } finally { send.disabled = false; }
+  } }, 'Envoyer et remplacer la base');
+  return h('div', { class: 'card', style: { marginTop: '16px' } },
+    h('h3', { style: { marginTop: 0 } }, 'Déménagement de la base de données'),
+    h('p', { class: 'muted' }, 'Sur l’ancien hébergeur : télécharge la base. Sur le nouveau : envoie ce fichier. Quand c’est fini, retire la variable ALLOW_DB_TRANSFER, ces boutons disparaissent.'),
+    h('div', { class: 'field' }, h('a', { class: 'btn', href: '/api/admin/db-export', download: '' }, icon('download', 14), 'Télécharger la base')),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Envoyer une base (sur le nouvel hébergeur)'), file, h('div', { style: { marginTop: '8px' } }, send)));
+}
+
 export async function adminPage(root) {
   if (!state.me.isOwner) { root.replaceChildren(h('div', { class: 'card' }, emptyState('lock', 'Réservé aux administrateurs du bot.'))); return; }
   root.replaceChildren(loading());
@@ -456,6 +478,7 @@ export async function adminPage(root) {
       h('button', { class: 'btn btn-primary', onclick: async () => {
         try { await api.put('/api/admin/presence', p); toast('Présence mise à jour.'); } catch (e) { toast(e.message, 'bad'); }
       } }, 'Appliquer')),
+    ...(d.dbTransfer ? [dbTransferCard()] : []),
     ...(d.licenseEnabled ? [await adminLicensesCard()] : []),
     h('h3', { class: 'section-title', style: { marginTop: '28px' } }, 'Serveurs'),
     h('div', { class: 'table-wrap' }, h('table', null,
